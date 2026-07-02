@@ -33,10 +33,16 @@ const UNLOCKS = [
   { from: 22, keys: ['berserker', 'regen'] },
   { from: 24, keys: ['summoner'] },
   { from: 26, keys: ['wraith'] },
+  { from: 9, keys: ['charger'] },
+  { from: 28, keys: ['necromancer'] },
   { from: 30, keys: ['heli'] },
+  { from: 32, keys: ['wyvern'] },
   { from: 34, keys: ['golem'] },
+  { from: 38, keys: ['hydra'] },
   { from: 40, keys: ['heavytank'] },
+  { from: 42, keys: ['juggernaut'] },
   { from: 46, keys: ['behemoth'] },
+  { from: 55, keys: ['colossus'] },
 ]
 
 function availableEnemies(n) {
@@ -55,8 +61,9 @@ export function getLevelConfig(n) {
   const theme = THEMES[zone % THEMES.length]
   const chapter = Math.floor((n - 1) / CHAPTER_SIZE) + 1
 
-  const hpMult = 1 + (n - 1) * 0.04
-  const spdMult = 1 + Math.min(0.7, (n - 1) * 0.0035)
+  // Tougher curve — a couple of towers should NOT clear a wave.
+  const hpMult = 1 + (n - 1) * 0.055
+  const spdMult = 1 + Math.min(0.75, (n - 1) * 0.004)
   const rewardMult = 1 + (n - 1) * 0.015
 
   const pool = availableEnemies(n)
@@ -71,11 +78,13 @@ export function getLevelConfig(n) {
       const type = pick(pool)
       const def = ENEMIES[type]
       const fast = def.speed > 100
-      const tanky = def.hp > 350
-      // Big swarms — your towers/heroes hit hard, so numbers scale up.
-      let count = Math.round((12 + i * 2.6) * (fast ? 1.4 : 1) / (tanky ? 2.4 : 1))
-      count = clamp(count, 5, 80)
-      const interval = clamp((0.85 - i * 0.04) * (fast ? 0.65 : 1), 0.2, 0.95)
+      const tanky = def.hp > 500
+      // Swarms ramp with BOTH the wave index and the level number: gentle at
+      // first, brutal later. A couple of towers won't hold for long.
+      const nScale = 1 + Math.min(1.6, (n - 1) * 0.028)
+      let count = Math.round((6 + i * 1.9) * nScale * (fast ? 1.4 : 1) / (tanky ? 2.6 : 1))
+      count = clamp(count, 4, 95)
+      const interval = clamp((0.95 - i * 0.038) * (fast ? 0.65 : 1), 0.28, 0.95)
       groups.push({ type, count, interval, delay: +(g * (0.8 + rand() * 2.4)).toFixed(2) })
     }
     // Random champion(s) (enemy heroes): elite reinforcements.
@@ -99,8 +108,8 @@ export function getLevelConfig(n) {
     ])
   }
 
-  const startMoney = clamp(220 + Math.floor(n / 4) * 8, 220, 700)
-  const baseHp = 20 + Math.floor(n / 40) * 5
+  const startMoney = clamp(240 + Math.floor(n / 4) * 8, 240, 720)
+  const baseHp = 26 + Math.floor(n / 25) * 6
 
   return {
     n, chapter, zone, map, theme,

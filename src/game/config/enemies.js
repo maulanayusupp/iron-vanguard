@@ -133,6 +133,36 @@ export const ENEMIES = {
     name: 'Behemoth', class: 'ground', hp: 1700, speed: 40, reward: 95, damage: 8, radius: 28,
     armor: 0.2, res: { fire: 1.7, kinetic: 0.7 }, sprite: 'brute', color: '#4d7c0f', accent: '#1a2e05',
   },
+  charger: {
+    name: 'Charger', class: 'ground', hp: 300, speed: 152, reward: 30, damage: 3, radius: 16,
+    armor: 0.1, res: { frost: 1.4, fire: 1.3 }, sprite: 'hound', color: '#1e293b', accent: '#ef4444',
+  },
+  necromancer: {
+    name: 'Necromancer', class: 'ground', hp: 460, speed: 56, reward: 66, damage: 3, radius: 18,
+    armor: 0, res: { energy: 1.6, fire: 1.3 }, sprite: 'summoner', color: '#334155', accent: '#4ade80',
+    abilities: { summon: { into: 'imp', count: 3, interval: 3.4 } },
+  },
+  hydra: {
+    name: 'Hydra', class: 'ground', hp: 820, speed: 54, reward: 72, damage: 5, radius: 22,
+    armor: 0.12, res: { fire: 1.6, kinetic: 0.75 }, sprite: 'brute', color: '#6d28d9', accent: '#22d3ee',
+    abilities: { split: { into: 'charger', count: 2 } },
+  },
+  wyvern: {
+    name: 'Wyvern', class: 'air', hp: 580, speed: 92, reward: 64, damage: 6, radius: 22,
+    armor: 0.1, res: { energy: 1.6, kinetic: 0.8 }, sprite: 'wyvern', color: '#7f1d1d', accent: '#fbbf24',
+  },
+  juggernaut: {
+    name: 'Juggernaut', class: 'ground', hp: 1500, speed: 40, reward: 115, damage: 9, radius: 26,
+    armor: 0.5, res: { kinetic: 0.4, explosive: 1.4, energy: 1.15 }, sprite: 'juggernaut', color: '#475569', accent: '#f87171',
+    // Heavily armored AND rips your towers apart.
+    abilities: { siege: { range: 1.6 * 64, dps: 48 } },
+  },
+  colossus: {
+    name: 'Colossus', class: 'ground', hp: 3400, speed: 32, reward: 190, damage: 13, radius: 34,
+    armor: 0.4, res: { kinetic: 0.5, explosive: 1.35, fire: 1.3 }, sprite: 'golem', color: '#a16207', accent: '#fde047',
+    // A walking siege engine: smashes towers, then detonates on death.
+    abilities: { siege: { range: 2.0 * 64, dps: 72 }, deathBomb: { radius: 2.0 * 64, dmg: 150 } },
+  },
 
   // ---- bosses ----
   mech: {

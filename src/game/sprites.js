@@ -461,6 +461,41 @@ function summoner(ctx, r, color, accent, anim) {
   ctx.globalAlpha = pulse; ctx.fillStyle = og; ctx.beginPath(); ctx.arc(r * 0.8, 0, r * 0.22, 0, TAU); ctx.fill(); ctx.globalAlpha = 1
 }
 
+function wyvern(ctx, r, color, accent, anim) {
+  const s = anim ? anim.spin : 0, dk = shade(color, -25)
+  const flap = Math.sin(s * 8) * r * 0.5
+  // membranous wings (flapping)
+  ctx.fillStyle = shade(color, -12); ctx.globalAlpha = 0.95
+  ctx.beginPath(); ctx.moveTo(-r * 0.1, -r * 0.2); ctx.quadraticCurveTo(-r * 0.9, -r * 0.9 - flap, -r * 1.35, -r * 0.2 - flap * 0.5); ctx.quadraticCurveTo(-r * 0.7, -r * 0.1, -r * 0.1, -r * 0.2); ctx.closePath(); ctx.fill()
+  ctx.beginPath(); ctx.moveTo(-r * 0.1, r * 0.2); ctx.quadraticCurveTo(-r * 0.9, r * 0.9 + flap, -r * 1.35, r * 0.2 + flap * 0.5); ctx.quadraticCurveTo(-r * 0.7, r * 0.1, -r * 0.1, r * 0.2); ctx.closePath(); ctx.fill()
+  ctx.globalAlpha = 1
+  // tail
+  ctx.strokeStyle = color; ctx.lineWidth = r * 0.16; ctx.lineCap = 'round'
+  ctx.beginPath(); ctx.moveTo(-r * 0.3, 0); ctx.quadraticCurveTo(-r * 1.0, r * 0.15, -r * 1.15, -r * 0.2); ctx.stroke()
+  // body + neck + head
+  const g = ctx.createLinearGradient(0, -r * 0.5, 0, r * 0.5); g.addColorStop(0, shade(color, 20)); g.addColorStop(1, dk)
+  outline(ctx, () => { ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(0, 0, r * 0.6, r * 0.4, 0, 0, TAU); ctx.fill() })
+  ctx.fillStyle = dk; ctx.beginPath(); ctx.ellipse(r * 0.62, 0, r * 0.35, r * 0.24, 0, 0, TAU); ctx.fill()
+  ctx.strokeStyle = accent; ctx.lineWidth = r * 0.08
+  ctx.beginPath(); ctx.moveTo(r * 0.72, -r * 0.15); ctx.lineTo(r * 0.98, -r * 0.32); ctx.moveTo(r * 0.72, r * 0.15); ctx.lineTo(r * 0.98, r * 0.32); ctx.stroke()
+  ctx.fillStyle = accent; ctx.beginPath(); ctx.arc(r * 0.78, -r * 0.08, r * 0.06, 0, TAU); ctx.fill(); ctx.beginPath(); ctx.arc(r * 0.78, r * 0.08, r * 0.06, 0, TAU); ctx.fill()
+}
+
+function juggernaut(ctx, r, color, accent, anim) {
+  const w = anim ? anim.walk : 0, s = anim ? anim.spin : 0, dk = shade(color, -35), lt = shade(color, 16)
+  const step = Math.sin(w) * r * 0.14
+  ctx.fillStyle = dk
+  for (const sx of [-0.3, 0.35]) for (const sy of [-1, 1]) { rr(ctx, sx * r + (sy < 0 ? step : -step), sy * r * 0.6, r * 0.3, r * 0.48, r * 0.08); ctx.fill() }
+  const g = ctx.createLinearGradient(0, -r, 0, r); g.addColorStop(0, lt); g.addColorStop(1, dk)
+  outline(ctx, () => { ctx.fillStyle = g; rr(ctx, -r * 0.75, -r * 0.7, r * 1.5, r * 1.4, r * 0.2); ctx.fill() })
+  ctx.fillStyle = shade(color, -10); rr(ctx, -r * 0.5, -r * 0.5, r * 0.9, r * 1.0, r * 0.16); ctx.fill()
+  // front ram/plow
+  ctx.fillStyle = '#111827'; ctx.beginPath(); ctx.moveTo(r * 0.6, -r * 0.62); ctx.lineTo(r * 1.12, 0); ctx.lineTo(r * 0.6, r * 0.62); ctx.closePath(); ctx.fill()
+  ctx.strokeStyle = accent; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(r * 0.72, -r * 0.35); ctx.lineTo(r * 0.98, 0); ctx.lineTo(r * 0.72, r * 0.35); ctx.stroke()
+  const pulse = 0.5 + 0.5 * Math.sin(s * 6)
+  ctx.globalAlpha = pulse; ctx.fillStyle = accent; ctx.fillRect(-r * 0.1, -r * 0.28, r * 0.3, r * 0.56); ctx.globalAlpha = 1
+}
+
 const ENEMY_ROUTINES = {
   soldier: (c, r, col, ac, a) => soldier(c, r, col, ac, false, a),
   soldier_heavy: (c, r, col, ac, a) => soldier(c, r, col, ac, true, a),
@@ -470,6 +505,7 @@ const ENEMY_ROUTINES = {
   jeep, apc, drone, heli, mech,
   spider, hound, brute, wasp, slime, wraith, sapper,
   imp, golem, bomber, artillery, summoner,
+  wyvern, juggernaut,
 }
 
 export function drawEnemy(ctx, e, spin) {
