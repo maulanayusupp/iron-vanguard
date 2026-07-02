@@ -1,0 +1,39 @@
+@use 'variables' as *;
+@use 'mixins' as *;
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(5, 10, 20, 0.72);
+  backdrop-filter: blur(3px);
+
+  &__card {
+    @include card;
+    padding: 26px 30px;
+    text-align: center;
+    max-width: 360px;
+
+    h2 { margin: 0 0 6px; }
+  }
+
+  &__stars {
+    font-size: 34px;
+    letter-spacing: 4px;
+    margin: 4px 0 8px;
+
+    i { color: #3b4763; font-style: normal; }
+    i.on { color: #f59e0b; text-shadow: 0 0 12px rgba(245, 158, 11, 0.6); }
+  }
+
+  &__actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+    justify-content: center;
+    flex-wrap: wrap;
+
+    .btn { flex: 1; min-width: 110px; }
+  }
+}

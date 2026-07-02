@@ -1,0 +1,16 @@
+@use 'variables' as *;
+
+@mixin card {
+  background: $panel;
+  border: 1px solid $line;
+  border-radius: $radius-lg;
+}
+
+@mixin tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+// Glow ring using the runtime --c colour.
+@mixin accent-ring($pct: 40%) {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) $pct, transparent);
+}

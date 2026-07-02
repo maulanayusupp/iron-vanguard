@@ -1,0 +1,824 @@
+import { TILE, COLS, ROWS, WIDTH, HEIGHT } from './config/maps.js'
+import { TOWERS, MAX_LEVEL as TOWER_MAX, damageAtLevel, rangeAtLevel, fireRateAtLevel } from './config/towers.js'
+import { ENEMIES } from './config/enemies.js'
+import { HEROES, HERO_SLOTS, RARITY } from './config/heroes.js'
+import { DAMAGE_TYPES } from './config/damage.js'
+import { drawEnemy, drawTower, drawHero } from './sprites.js'
+import { pointerToCanvas } from '../helpers/canvas.js'
+import { audioService } from '../services/audio.service.js'
+
+const TAU = Math.PI * 2
+const rand = () => Math.random()
+const TOWER_BASE_HP = 120
+const TOWER_HP_PER_LEVEL = 60
+
+export class Game {
+  constructor(canvas, state, level) {
+    this.canvas = canvas
+    this.ctx = canvas.getContext('2d')
+    this.state = state
+    this._loop = this._loop.bind(this)
+    this.running = false
+    this.reset(level)
+  }
+
+  reset(level) {
+    this.level = level
+    this.pathPx = level.map.path.map((p) => ({ x: p.x * TILE + TILE / 2, y: p.y * TILE + TILE / 2 }))
+    this.blocked = this._computeBlocked(level.map.path)
+
+    this.turrets = []
+    this.enemies = []
+    this.projectiles = []
+    this.beams = []
+    this.particles = []
+    this.heroes = []
+    this.buffs = []
+    this.spawnExtra = []
+    this.spawnQueue = []
+
+    this.waveActive = false
+    this.waveTimer = 0
+    this.time = 0
+    this.spin = 0
+    this.speedMult = 1
+    this.lastTime = 0
+
+    this.build = null
+    this.selected = null
+    this.hover = null
+
+    const s = this.state
+    s.level = level.n
+    s.chapter = level.chapter
+    s.themeName = level.theme.name
+    s.mapName = level.map.name
+    s.money = level.startMoney
+    s.baseHp = level.baseHp
+    s.maxBaseHp = level.baseHp
+    s.wave = 0
+    s.totalWaves = level.totalWaves
+    s.kills = 0
+    s.status = 'playing'
+    s.waveActive = false
+    s.speed = 1
+    s.stars = 0
+    s.selectedInfo = null
+    s.heroSkills = []
+    s.deployed = []
+  }
+
+  start() { if (!this.running) { this.running = true; requestAnimationFrame(this._loop) } }
+  stop() { this.running = false }
+  restart(level) { this.reset(level || this.level) }
+
+  // ---- map ---------------------------------------------------------------
+
+  _computeBlocked(path) {
+    const set = new Set()
+    for (let i = 0; i < path.length - 1; i++) {
+      const a = path[i], b = path[i + 1]
+      const dx = Math.sign(b.x - a.x), dy = Math.sign(b.y - a.y)
+      let x = a.x, y = a.y
+      while (true) {
+        if (x >= 0 && x < COLS && y >= 0 && y < ROWS) set.add(`${x},${y}`)
+        if (x === b.x && y === b.y) break
+        x += dx; y += dy
+      }
+    }
+    return set
+  }
+
+  _occupied(col, row) {
+    return this.turrets.some((t) => t.col === col && t.row === row) ||
+      this.heroes.some((h) => h.col === col && h.row === row)
+  }
+  canBuild(col, row) {
+    if (col < 0 || col >= COLS || row < 0 || row >= ROWS) return false
+    if (this.blocked.has(`${col},${row}`)) return false
+    return !this._occupied(col, row)
+  }
+
+  // ---- input -------------------------------------------------------------
+
+  setBuild(kind, key) {
+    this.build = key ? { kind, key } : null
+    this.selected = null
+    this.state.selectedInfo = null
+  }
+  clearBuild() { this.build = null }
+
+  _toGrid(cx, cy) {
+    const { x, y } = pointerToCanvas(this.canvas, cx, cy)
+    return { col: Math.floor(x / TILE), row: Math.floor(y / TILE) }
+  }
+  handleMove(cx, cy) { this.hover = this._toGrid(cx, cy) }
+  handleLeave() { this.hover = null }
+
+  handlePointer(cx, cy) {
+    const { col, row } = this._toGrid(cx, cy)
+    if (this.build) {
+      if (this.build.kind === 'tower') this._placeTower(col, row)
+      else this._deployHero(col, row)
+      return
+    }
+    const ent = this.turrets.find((t) => t.col === col && t.row === row) ||
+      this.heroes.find((h) => h.col === col && h.row === row)
+    if (ent) { this.selected = ent; this._refreshSelected() }
+    else { this.selected = null; this.state.selectedInfo = null }
+  }
+
+  _placeTower(col, row) {
+    const def = TOWERS[this.build.key]
+    if (!def || !this.canBuild(col, row) || this.state.money < def.cost) return
+    this.state.money -= def.cost
+    this.turrets.push({
+      kind: 'tower', key: this.build.key, col, row,
+      x: col * TILE + TILE / 2, y: row * TILE + TILE / 2,
+      level: 1, invested: def.cost, cooldown: 0, angle: -Math.PI / 2,
+      hp: TOWER_BASE_HP, maxHp: TOWER_BASE_HP,
+      target: null, lockTarget: null, lockTime: 0,
+    })
+  }
+
+  _deployHero(col, row) {
+    const key = this.build.key
+    if (!this.canBuild(col, row) || this.heroes.length >= HERO_SLOTS || this.heroes.some((h) => h.key === key)) return
+    this.heroes.push({
+      kind: 'hero', key, col, row,
+      x: col * TILE + TILE / 2, y: row * TILE + TILE / 2,
+      cooldown: 0, atkCooldown: 0, angle: 0, target: null, lockTarget: null, lockTime: 0,
+    })
+    this.state.deployed.push(key)
+    this._syncHeroSkills()
+    this.build = null
+  }
+
+  _syncHeroSkills() {
+    this.state.heroSkills = this.heroes.map((h) => {
+      const def = HEROES[h.key]
+      return {
+        key: h.key, name: def.name, skillName: def.skill.name, desc: def.skill.desc,
+        color: def.color, rarity: def.rarity, rarityColor: RARITY[def.rarity].color,
+        cooldown: def.skill.cooldown, cooldownLeft: h.cooldown, ready: h.cooldown <= 0,
+      }
+    })
+  }
+
+  _refreshSelected() {
+    const e = this.selected
+    if (!e) { this.state.selectedInfo = null; return }
+    if (e.kind === 'tower') {
+      const def = TOWERS[e.key]
+      const up = def.cost * e.level
+      this.state.selectedInfo = {
+        kind: 'tower', name: def.name, color: def.color, level: e.level, maxLevel: TOWER_MAX,
+        damage: Math.round(damageAtLevel(def.damage, e.level)),
+        range: Math.round(rangeAtLevel(def.range, e.level)),
+        dtype: DAMAGE_TYPES[def.dtype].label, dtypeColor: DAMAGE_TYPES[def.dtype].color, strongVs: def.strongVs,
+        canUpgrade: e.level < TOWER_MAX, upgradeCost: up,
+        canAfford: this.state.money >= up, sellValue: Math.floor(e.invested * 0.6),
+      }
+    } else {
+      const def = HEROES[e.key]
+      this.state.selectedInfo = {
+        kind: 'hero', name: def.name, color: def.color,
+        rarity: RARITY[def.rarity].label, rarityColor: RARITY[def.rarity].color,
+        dtype: DAMAGE_TYPES[def.attack.dtype].label, dtypeColor: DAMAGE_TYPES[def.attack.dtype].color,
+        skillName: def.skill.name, desc: def.skill.desc,
+      }
+    }
+  }
+
+  upgradeSelected() {
+    const t = this.selected
+    if (!t || t.kind !== 'tower' || t.level >= TOWER_MAX) return
+    const cost = TOWERS[t.key].cost * t.level
+    if (this.state.money < cost) return
+    this.state.money -= cost
+    t.level += 1
+    t.invested += cost
+    t.maxHp = TOWER_BASE_HP + (t.level - 1) * TOWER_HP_PER_LEVEL
+    t.hp = t.maxHp // upgrading also repairs
+    this._refreshSelected()
+  }
+
+  sellSelected() {
+    const e = this.selected
+    if (!e) return
+    if (e.kind === 'tower') {
+      this.state.money += Math.floor(e.invested * 0.6)
+      this.turrets = this.turrets.filter((x) => x !== e)
+    } else {
+      this.heroes = this.heroes.filter((x) => x !== e)
+      this.state.deployed = this.state.deployed.filter((k) => k !== e.key)
+      this._syncHeroSkills()
+    }
+    this.selected = null
+    this.state.selectedInfo = null
+  }
+
+  setSpeed(mult) { this.speedMult = mult; this.state.speed = mult }
+
+  // ---- waves -------------------------------------------------------------
+
+  startWave() {
+    if (this.waveActive || this.state.status !== 'playing') return
+    const groups = this.level.waves[this.state.wave]
+    if (!groups) return
+    this.spawnQueue = []
+    for (const g of groups) {
+      const delay = g.delay || 0
+      for (let i = 0; i < g.count; i++) this.spawnQueue.push({ type: g.type, time: delay + i * g.interval, champion: !!g.champion })
+    }
+    this.spawnQueue.sort((a, b) => a.time - b.time)
+    this.waveTimer = 0
+    this.waveActive = true
+    this.state.waveActive = true
+  }
+
+  _spawn(type, opts = {}) {
+    const def = ENEMIES[type]
+    let hp = def.hp * this.level.hpMult
+    let radius = def.radius
+    let reward = def.reward * this.level.rewardMult
+    let speed = def.speed * this.level.spdMult
+    let armor = def.armor || 0
+    let abilities = def.abilities ? { ...def.abilities } : null
+    const champion = !!opts.champion
+    let name = def.name
+    if (champion) {
+      hp *= 4.5; radius *= 1.4; reward *= 5; speed *= 0.92; name = 'Elite ' + def.name
+      abilities = abilities ? { ...abilities } : {}
+      const mods = ['swift', 'armored', 'regen', 'brute']
+      const mod = mods[Math.floor(rand() * mods.length)]
+      if (mod === 'swift') speed *= 1.4
+      else if (mod === 'armored') armor = Math.max(armor, 0.5)
+      else if (mod === 'regen') abilities.regen = (abilities.regen || 0) + 40
+      else { hp *= 1.4; radius *= 1.1 }
+    }
+    const p = opts.at || this.pathPx[0]
+    this.enemies.push({
+      type, name, class: def.class, sprite: def.sprite,
+      color: def.color, accent: def.accent, radius, armor,
+      abilities, boss: !!def.boss, champion, res: def.res || null,
+      x: p.x, y: p.y, seg: 1, dist: 0, angle: 0,
+      hp: Math.round(hp), maxHp: Math.round(hp), speed,
+      reward: Math.round(reward), damage: def.damage,
+      slowTimer: 0, slowFactor: 0, dotTimer: 0, dotDps: 0, dotType: 'fire', buffSpeed: 1,
+      siegeTarget: null, dead: false, reached: false,
+    })
+    if (champion) this._text(p.x, p.y, 'ELITE!', '#fbbf24')
+  }
+
+  // ---- simulation --------------------------------------------------------
+
+  update(dt) {
+    if (this.state.status !== 'playing') return
+    this.time += dt
+    this.spin += dt
+
+    if (this.buffs.length) this.buffs = this.buffs.filter((b) => b.expire > this.time)
+
+    if (this.waveActive) {
+      this.waveTimer += dt
+      while (this.spawnQueue.length && this.spawnQueue[0].time <= this.waveTimer) {
+        const s = this.spawnQueue.shift()
+        this._spawn(s.type, { champion: s.champion })
+      }
+    }
+
+    for (const e of this.enemies) e.buffSpeed = 1
+    for (const e of this.enemies) {
+      if (!e.abilities || e.dead) continue
+      if (e.abilities.heal) {
+        const { radius, amount } = e.abilities.heal
+        for (const o of this.enemies) {
+          if (o === e || o.dead) continue
+          if (Math.hypot(o.x - e.x, o.y - e.y) <= radius) o.hp = Math.min(o.maxHp, o.hp + amount * dt)
+        }
+      }
+      if (e.abilities.buff) {
+        const { radius, speedMult } = e.abilities.buff
+        for (const o of this.enemies) {
+          if (o === e || o.dead) continue
+          if (Math.hypot(o.x - e.x, o.y - e.y) <= radius) o.buffSpeed = Math.max(o.buffSpeed, speedMult)
+        }
+      }
+    }
+
+    for (const e of this.enemies) this._moveEnemy(e, dt)
+
+    for (const e of this.enemies) {
+      if (e.reached && !e.dead) { e.dead = true; this.state.baseHp -= e.damage }
+    }
+
+    for (const t of this.turrets) this._updateTower(t, dt)
+    for (const h of this.heroes) this._updateHero(h, dt)
+    for (const p of this.projectiles) this._updateProjectile(p, dt)
+    this._updateParticles(dt)
+
+    if (this.beams.length) { for (const b of this.beams) b.life -= dt; this.beams = this.beams.filter((b) => b.life > 0) }
+    if (this.spawnExtra.length) { for (const s of this.spawnExtra) this._spawn(s.type, { at: s.at }); this.spawnExtra = [] }
+
+    this.enemies = this.enemies.filter((e) => !e.dead)
+    this.projectiles = this.projectiles.filter((p) => !p.dead)
+
+    if (this.waveActive && !this.spawnQueue.length && !this.enemies.length) {
+      this.waveActive = false
+      this.state.waveActive = false
+      this.state.wave += 1
+      this.state.money += 50 + this.state.wave * 12
+      if (this.state.wave >= this.level.totalWaves) {
+        const ratio = this.state.baseHp / this.state.maxBaseHp
+        this.state.stars = ratio >= 0.9 ? 3 : ratio >= 0.5 ? 2 : 1
+        this.state.status = 'won'
+        audioService.end(true)
+      } else {
+        this._text(WIDTH / 2, HEIGHT / 2, 'WAVE CLEARED', '#22d3ee', true)
+      }
+    }
+
+    if (this.state.baseHp <= 0) { this.state.baseHp = 0; this.state.status = 'lost'; audioService.end(false) }
+  }
+
+  _moveEnemy(e, dt) {
+    if (e.dotTimer > 0) { e.dotTimer -= dt; this._damage(e, e.dotDps * dt, e.dotType) }
+    if (e.dead) return
+    if (e.abilities && e.abilities.regen && e.hp < e.maxHp) e.hp = Math.min(e.maxHp, e.hp + e.abilities.regen * dt)
+    if (e.slowTimer > 0) e.slowTimer -= dt
+
+    // siege: attack & destroy nearby towers instead of advancing
+    if (e.abilities && e.abilities.siege) {
+      const { range, dps } = e.abilities.siege
+      let tgt = null, td = range
+      for (const t of this.turrets) { const d = Math.hypot(t.x - e.x, t.y - e.y); if (d <= td) { td = d; tgt = t } }
+      e.siegeTarget = tgt
+      if (tgt) {
+        tgt.hp -= dps * dt
+        if (this.spin % 0.5 < dt) this._spark(tgt.x, tgt.y, '#fca5a5')
+        if (tgt.hp <= 0) this._destroyTower(tgt)
+        return // stop to attack
+      }
+    }
+
+    const target = this.pathPx[e.seg]
+    if (!target) { e.reached = true; return }
+    let enrage = 1
+    if (e.abilities && e.abilities.enrage && e.hp / e.maxHp < e.abilities.enrage.below) enrage = e.abilities.enrage.speedMult
+    const slow = e.slowTimer > 0 ? 1 - e.slowFactor : 1
+    const move = e.speed * enrage * e.buffSpeed * slow * dt
+
+    const dx = target.x - e.x, dy = target.y - e.y
+    const d = Math.hypot(dx, dy)
+    e.angle = Math.atan2(dy, dx)
+    if (d <= move) {
+      e.x = target.x; e.y = target.y; e.dist += d; e.seg += 1
+      if (e.seg >= this.pathPx.length) e.reached = true
+    } else {
+      e.x += (dx / d) * move; e.y += (dy / d) * move; e.dist += move
+    }
+  }
+
+  _destroyTower(t) {
+    this._explosion(t.x, t.y, TILE * 0.7, TOWERS[t.key].color)
+    audioService.explosion()
+    this._text(t.x, t.y - 8, 'TOWER LOST', '#ef4444')
+    this.turrets = this.turrets.filter((x) => x !== t)
+    if (this.selected === t) { this.selected = null; this.state.selectedInfo = null }
+  }
+
+  // ---- combat ------------------------------------------------------------
+
+  _towerStats(t) {
+    const def = TOWERS[t.key]
+    let dmg = 1, fire = 1, range = 1
+    for (const h of this.heroes) {
+      const p = HEROES[h.key].passive
+      if (!p) continue
+      if (p.radius === 0 || Math.hypot(h.x - t.x, h.y - t.y) <= p.radius) {
+        if (p.damageMult) dmg *= p.damageMult
+        if (p.fireMult) fire *= p.fireMult
+        if (p.rangeMult) range *= p.rangeMult
+      }
+    }
+    for (const b of this.buffs) { dmg *= b.damageMult || 1; fire *= b.fireMult || 1 }
+    const damage = damageAtLevel(def.damage, t.level) * dmg
+    return {
+      mode: def.mode, dtype: def.dtype, range: rangeAtLevel(def.range, t.level) * range, minRange: def.minRange || 0,
+      damage, fireRate: fireRateAtLevel(def.fireRate, t.level) * fire, projSpeed: def.projSpeed,
+      splash: def.splash || 0, slow: def.slow || null, dot: def.dot || null, chain: def.chain || null,
+      ramp: def.ramp || 0, groundOnly: !!def.groundOnly, color: def.color, pitch: this._pitch(damage),
+    }
+  }
+
+  _heroStats(h) {
+    const a = HEROES[h.key].attack
+    return {
+      mode: a.mode, dtype: a.dtype, range: a.range, minRange: 0, damage: a.damage, fireRate: a.fireRate,
+      projSpeed: a.projSpeed, splash: a.splash || 0, slow: a.slow || null, dot: a.dot || null,
+      chain: a.chain || null, ramp: 0, groundOnly: false, color: HEROES[h.key].color, pitch: this._pitch(a.damage),
+    }
+  }
+
+  _pitch(damage) { return Math.max(150, Math.min(760, 720 - damage * 2.4)) }
+
+  _acquire(unit, stats) {
+    let best = null
+    for (const e of this.enemies) {
+      if (e.dead) continue
+      if (stats.groundOnly && e.class === 'air') continue
+      const d = Math.hypot(e.x - unit.x, e.y - unit.y)
+      if (d > stats.range || (stats.minRange && d < stats.minRange)) continue
+      if (!best || e.dist > best.dist) best = e
+    }
+    return best
+  }
+
+  _updateTower(t, dt) {
+    t.cooldown -= dt
+    const stats = this._towerStats(t)
+    const target = this._acquire(t, stats)
+    t.target = target
+    if (!target) { t.lockTarget = null; t.lockTime = 0; return }
+    t.angle = Math.atan2(target.y - t.y, target.x - t.x)
+    if (t.cooldown <= 0) { t.cooldown = 1 / stats.fireRate; this._fire(t, stats, target) }
+  }
+
+  _updateHero(h, dt) {
+    if (h.cooldown > 0) { h.cooldown = Math.max(0, h.cooldown - dt); this._updateHeroCooldownUi() }
+    h.atkCooldown -= dt
+    const stats = this._heroStats(h)
+    const target = this._acquire(h, stats)
+    h.target = target
+    if (!target) { h.lockTarget = null; h.lockTime = 0; return }
+    h.angle = Math.atan2(target.y - h.y, target.x - h.x)
+    if (h.atkCooldown <= 0) { h.atkCooldown = 1 / stats.fireRate; this._fire(h, stats, target) }
+  }
+
+  _fire(unit, stats, target) {
+    const bx = unit.x + Math.cos(unit.angle) * 22
+    const by = unit.y + Math.sin(unit.angle) * 22
+    this._muzzle(bx, by, unit.angle, stats.color)
+    audioService.shoot(stats.pitch)
+    if (stats.mode === 'projectile') {
+      this.projectiles.push({
+        x: bx, y: by, target, speed: stats.projSpeed, damage: stats.damage, dtype: stats.dtype,
+        splash: stats.splash, slow: stats.slow, dot: stats.dot, color: stats.color, dead: false,
+      })
+    } else {
+      this._hitscan(unit, stats, target, bx, by)
+    }
+  }
+
+  _hitscan(unit, stats, target, bx, by) {
+    let dmg = stats.damage
+    if (stats.ramp) {
+      if (unit.lockTarget === target) unit.lockTime = (unit.lockTime || 0) + 1 / stats.fireRate
+      else { unit.lockTarget = target; unit.lockTime = 0 }
+      dmg *= 1 + (stats.ramp - 1) * Math.min(1, unit.lockTime / 2)
+    }
+    if (stats.chain) {
+      const hit = new Set([target])
+      let from = target
+      this._damage(target, dmg, stats.dtype); this._spark(target.x, target.y, stats.color)
+      const segs = [[bx, by, target.x, target.y]]
+      for (let j = 0; j < stats.chain.jumps; j++) {
+        let next = null, nd = stats.chain.range
+        for (const e of this.enemies) {
+          if (e.dead || hit.has(e)) continue
+          const d = Math.hypot(e.x - from.x, e.y - from.y)
+          if (d <= nd) { nd = d; next = e }
+        }
+        if (!next) break
+        segs.push([from.x, from.y, next.x, next.y])
+        this._damage(next, dmg * 0.8, stats.dtype); this._spark(next.x, next.y, stats.color)
+        hit.add(next); from = next
+      }
+      this.beams.push({ segs, color: stats.color, life: 0.09, width: 3 })
+      return
+    }
+    this._damage(target, dmg, stats.dtype)
+    this._spark(target.x, target.y, stats.color)
+    if (stats.dot) { target.dotDps = stats.dot.dps; target.dotTimer = stats.dot.dur; target.dotType = stats.dtype }
+    if (stats.splash) this._applySplash(target, dmg * 0.5, stats)
+    this.beams.push({ segs: [[bx, by, target.x, target.y]], color: stats.color, life: 0.06, width: stats.ramp ? 4 : 2 })
+  }
+
+  _applySplash(center, dmg, stats) {
+    this._explosion(center.x, center.y, stats.splash, stats.color)
+    audioService.explosion()
+    for (const o of this.enemies) {
+      if (o === center || o.dead) continue
+      if (Math.hypot(o.x - center.x, o.y - center.y) <= stats.splash) {
+        this._damage(o, dmg, stats.dtype)
+        if (stats.slow) { o.slowTimer = stats.slow.dur; o.slowFactor = stats.slow.factor }
+        if (stats.dot) { o.dotDps = stats.dot.dps; o.dotTimer = stats.dot.dur; o.dotType = stats.dtype }
+      }
+    }
+  }
+
+  _updateProjectile(p, dt) {
+    const e = p.target
+    if (!e || e.dead || e.reached) { p.dead = true; return }
+    const dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy)
+    const move = p.speed * dt
+    if (d <= move + e.radius) {
+      this._damage(e, p.damage, p.dtype)
+      if (p.slow) { e.slowTimer = p.slow.dur; e.slowFactor = p.slow.factor }
+      if (p.dot) { e.dotDps = p.dot.dps; e.dotTimer = p.dot.dur; e.dotType = p.dtype }
+      if (p.splash) this._applySplash(e, p.damage * 0.5, p)
+      else this._spark(e.x, e.y, p.color)
+      p.dead = true
+    } else {
+      p.x += (dx / d) * move; p.y += (dy / d) * move
+    }
+  }
+
+  // dtype: one of DAMAGE_TYPES keys, or 'true' to bypass resist & armor.
+  _damage(e, dmg, dtype = 'kinetic') {
+    if (e.dead) return
+    if (dtype !== 'true') {
+      if (e.res && e.res[dtype]) dmg *= e.res[dtype]
+      if (dtype === 'kinetic') dmg *= 1 - e.armor
+    }
+    e.hp -= dmg
+    if (e.hp <= 0) {
+      e.dead = true
+      this.state.money += e.reward
+      this.state.kills += 1
+      this._debris(e.x, e.y, e.color)
+      if (e.champion) { this._explosion(e.x, e.y, e.radius * 1.6, '#fbbf24'); this._text(e.x, e.y, '+$' + e.reward, '#fbbf24') }
+      if (e.boss) { this._explosion(e.x, e.y, e.radius * 2, e.color); audioService.explosion() }
+      if (e.abilities && e.abilities.split) {
+        const { into, count } = e.abilities.split
+        for (let i = 0; i < count; i++) this.spawnExtra.push({ type: into, at: { x: e.x + (i - count / 2) * 8, y: e.y } })
+      }
+    }
+  }
+
+  // ---- hero skills -------------------------------------------------------
+
+  _updateHeroCooldownUi() {
+    for (const ui of this.state.heroSkills) {
+      const h = this.heroes.find((x) => x.key === ui.key)
+      if (h) { ui.cooldownLeft = h.cooldown; ui.ready = h.cooldown <= 0 }
+    }
+  }
+
+  useSkill(key) {
+    const h = this.heroes.find((x) => x.key === key)
+    if (!h || h.cooldown > 0 || this.state.status !== 'playing') return
+    const def = HEROES[key]
+    audioService.skill()
+    this._runEffect(h, def.skill.effect)
+    h.cooldown = def.skill.cooldown
+    this._updateHeroCooldownUi()
+  }
+
+  _runEffect(h, ef) {
+    switch (ef.type) {
+      case 'aoe_damage':
+        for (const e of this.enemies) if (Math.hypot(e.x - h.x, e.y - h.y) <= ef.radius) this._damage(e, ef.amount, 'explosive')
+        this._explosion(h.x, h.y, ef.radius, '#f59e0b'); audioService.explosion(); break
+      case 'dot_all':
+        for (const e of this.enemies) { e.dotDps = ef.dps; e.dotTimer = ef.dur; e.dotType = 'fire' }; break
+      case 'freeze_all':
+        for (const e of this.enemies) { e.slowTimer = ef.dur; e.slowFactor = 1 }
+        this._flash('rgba(96,165,250,0.25)'); break
+      case 'slow_all':
+        for (const e of this.enemies) { e.slowTimer = ef.dur; e.slowFactor = ef.factor }; break
+      case 'buff_towers':
+        this.buffs.push({ damageMult: ef.damageMult, fireMult: ef.fireMult, expire: this.time + ef.dur }); break
+      case 'heal_base':
+        this.state.baseHp = Math.min(this.state.maxBaseHp, this.state.baseHp + ef.amount); break
+      case 'kill_strong': {
+        let best = null
+        for (const e of this.enemies) if (!best || e.dist > best.dist) best = e
+        if (best) { this._damage(best, ef.amount, 'true'); this.beams.push({ segs: [[h.x, h.y, best.x, best.y]], color: '#22d3ee', life: 0.12, width: 3 }) }
+        break
+      }
+      case 'chain_all': {
+        const hit = new Set(); let from = h; const segs = []
+        for (let j = 0; j < ef.jumps; j++) {
+          let next = null, nd = 999999
+          for (const e of this.enemies) {
+            if (e.dead || hit.has(e)) continue
+            const d = Math.hypot(e.x - from.x, e.y - from.y)
+            if (d < nd) { nd = d; next = e }
+          }
+          if (!next) break
+          segs.push([from.x, from.y, next.x, next.y]); this._damage(next, ef.amount, 'energy'); this._spark(next.x, next.y, '#a78bfa')
+          hit.add(next); from = next
+        }
+        if (segs.length) this.beams.push({ segs, color: '#a78bfa', life: 0.15, width: 3 })
+        break
+      }
+      case 'orbital':
+        for (const e of this.enemies) { this._damage(e, ef.amount, 'explosive'); e.slowTimer = ef.dur; e.slowFactor = 1 }
+        this._flash('rgba(239,68,68,0.3)'); audioService.explosion(); break
+      case 'rebirth':
+        this.state.baseHp = Math.min(this.state.maxBaseHp, this.state.baseHp + ef.heal)
+        for (const e of this.enemies) { e.dotDps = ef.dps; e.dotTimer = ef.dur; e.dotType = 'fire' }
+        this._flash('rgba(251,146,60,0.28)'); break
+    }
+  }
+
+  // ---- particles / effects ----------------------------------------------
+
+  _muzzle(x, y, angle, color) {
+    this.particles.push({ type: 'flash', x, y, angle, color, life: 0.07, max: 0.07 })
+    for (let i = 0; i < 3; i++) {
+      const a = angle + (rand() - 0.5) * 0.7, sp = 120 + rand() * 120
+      this.particles.push({ type: 'spark', x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.18, max: 0.18, color, size: 2 })
+    }
+  }
+  _spark(x, y, color) {
+    for (let i = 0; i < 5; i++) {
+      const a = rand() * TAU, sp = 60 + rand() * 140
+      this.particles.push({ type: 'spark', x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.22, max: 0.22, color, size: 2 })
+    }
+  }
+  _explosion(x, y, r, color) {
+    this.particles.push({ type: 'ring', x, y, r, color, life: 0.32, max: 0.32 })
+    for (let i = 0; i < 10; i++) {
+      const a = rand() * TAU, sp = 80 + rand() * 200
+      this.particles.push({ type: 'spark', x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.3, max: 0.3, color, size: 2.5 })
+    }
+  }
+  _debris(x, y, color) {
+    for (let i = 0; i < 6; i++) {
+      const a = rand() * TAU, sp = 40 + rand() * 120
+      this.particles.push({ type: 'debris', x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.4, max: 0.4, color, size: 2 + rand() * 2, rot: rand() * TAU })
+    }
+  }
+  _flash(color) { this.particles.push({ type: 'screen', color, life: 0.35, max: 0.35 }) }
+  _text(x, y, text, color, big) { this.particles.push({ type: 'text', x, y, text, color, life: 1.1, max: 1.1, vy: -26, big: !!big }) }
+
+  _updateParticles(dt) {
+    if (!this.particles.length) return
+    for (const p of this.particles) {
+      p.life -= dt
+      if (p.type === 'text') { p.y += p.vy * dt }
+      else if (p.vx !== undefined) {
+        p.x += p.vx * dt; p.y += p.vy * dt
+        const f = 1 - Math.min(1, 3 * dt)
+        p.vx *= f; p.vy *= f
+      }
+    }
+    this.particles = this.particles.filter((p) => p.life > 0)
+    if (this.particles.length > 600) this.particles.splice(0, this.particles.length - 600)
+  }
+
+  // ---- loop + render -----------------------------------------------------
+
+  _loop(ts) {
+    if (!this.running) return
+    if (!this.lastTime) this.lastTime = ts
+    let dt = (ts - this.lastTime) / 1000
+    this.lastTime = ts
+    if (dt > 0.05) dt = 0.05
+    for (let i = 0; i < this.speedMult; i++) this.update(dt)
+    this.render()
+    requestAnimationFrame(this._loop)
+  }
+
+  render() {
+    const ctx = this.ctx
+    const th = this.level.theme
+    ctx.clearRect(0, 0, WIDTH, HEIGHT)
+    ctx.fillStyle = th.ground
+    ctx.fillRect(0, 0, WIDTH, HEIGHT)
+
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        if (this.blocked.has(`${c},${r}`)) continue
+        ctx.fillStyle = th.grid
+        ctx.fillRect(c * TILE + 1, r * TILE + 1, TILE - 2, TILE - 2)
+      }
+    }
+
+    const trace = () => { ctx.beginPath(); this.pathPx.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y))) }
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round'
+    ctx.strokeStyle = th.road; ctx.lineWidth = TILE * 0.72; trace(); ctx.stroke()
+    ctx.setLineDash([12, 16]); ctx.strokeStyle = th.accent; ctx.globalAlpha = 0.5
+    ctx.lineWidth = 4; trace(); ctx.stroke(); ctx.globalAlpha = 1; ctx.setLineDash([])
+
+    const end = this.pathPx[this.pathPx.length - 1]
+    ctx.fillStyle = th.accent; ctx.beginPath(); ctx.arc(end.x, end.y, 22, 0, TAU); ctx.fill()
+    ctx.fillStyle = '#0b1120'; ctx.beginPath(); ctx.arc(end.x, end.y, 12, 0, TAU); ctx.fill()
+    ctx.fillStyle = th.accent; ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'center'
+    ctx.fillText('★', end.x, end.y + 5)
+
+    this._renderPreview(ctx)
+    this._renderSelectedRing(ctx)
+
+    // siege attack lines (enemy → tower)
+    for (const e of this.enemies) {
+      if (e.siegeTarget) {
+        ctx.strokeStyle = 'rgba(239,68,68,0.6)'; ctx.lineWidth = 2
+        ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(e.siegeTarget.x, e.siegeTarget.y); ctx.stroke()
+      }
+    }
+
+    for (const h of this.heroes) drawHero(ctx, h, HEROES[h.key], RARITY[HEROES[h.key].rarity].color, this.spin)
+    for (const t of this.turrets) this._renderTower(ctx, t)
+    for (const e of this.enemies) this._renderEnemy(ctx, e)
+    for (const p of this.projectiles) { ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.splash ? 5 : 3.5, 0, TAU); ctx.fill() }
+
+    this._renderBeams(ctx)
+    this._renderParticles(ctx)
+  }
+
+  _renderTower(ctx, t) {
+    drawTower(ctx, t, TOWERS[t.key], t.angle, this.spin)
+    if (t.hp < t.maxHp) {
+      const w = 34, hpr = Math.max(0, t.hp / t.maxHp)
+      ctx.fillStyle = '#0b1120'; ctx.fillRect(t.x - w / 2, t.y + 24, w, 4)
+      ctx.fillStyle = hpr > 0.5 ? '#22c55e' : hpr > 0.25 ? '#f59e0b' : '#ef4444'
+      ctx.fillRect(t.x - w / 2, t.y + 24, w * hpr, 4)
+    }
+  }
+
+  _renderPreview(ctx) {
+    if (!this.build || !this.hover) return
+    const { col, row } = this.hover
+    if (col < 0 || col >= COLS || row < 0 || row >= ROWS) return
+    const isTower = this.build.kind === 'tower'
+    const def = isTower ? TOWERS[this.build.key] : HEROES[this.build.key]
+    let valid = this.canBuild(col, row)
+    if (isTower) valid = valid && this.state.money >= def.cost
+    else valid = valid && this.heroes.length < HERO_SLOTS && !this.heroes.some((h) => h.key === this.build.key)
+    const cx = col * TILE + TILE / 2, cy = row * TILE + TILE / 2
+    const ring = isTower ? def.range : (def.attack ? def.attack.range : 0)
+    if (ring) { ctx.globalAlpha = 0.11; ctx.fillStyle = def.color; ctx.beginPath(); ctx.arc(cx, cy, ring, 0, TAU); ctx.fill(); ctx.globalAlpha = 1 }
+    ctx.globalAlpha = 0.5; ctx.fillStyle = valid ? '#22c55e' : '#ef4444'
+    ctx.fillRect(col * TILE, row * TILE, TILE, TILE); ctx.globalAlpha = 1
+  }
+
+  _renderSelectedRing(ctx) {
+    const e = this.selected
+    if (!e) return
+    let radius = 0, color = '#fff'
+    if (e.kind === 'tower') { radius = rangeAtLevel(TOWERS[e.key].range, e.level); color = TOWERS[e.key].color }
+    else { const a = HEROES[e.key].attack; radius = a ? a.range : 0; color = HEROES[e.key].color }
+    if (!radius) return
+    ctx.globalAlpha = 0.12; ctx.fillStyle = color
+    ctx.beginPath(); ctx.arc(e.x, e.y, radius, 0, TAU); ctx.fill(); ctx.globalAlpha = 1
+  }
+
+  _renderEnemy(ctx, e) {
+    drawEnemy(ctx, e, this.spin)
+    const yTop = e.y - e.radius - (e.class === 'air' ? e.radius * 0.6 : 0) - 10
+    const w = Math.max(e.radius * 2, 20)
+    const hpr = Math.max(0, e.hp / e.maxHp)
+    ctx.fillStyle = '#0b1120'; ctx.fillRect(e.x - w / 2, yTop, w, 5)
+    ctx.fillStyle = e.champion ? '#fbbf24' : e.boss ? '#f59e0b' : hpr > 0.5 ? '#22c55e' : hpr > 0.25 ? '#f59e0b' : '#ef4444'
+    ctx.fillRect(e.x - w / 2, yTop, w * hpr, 5)
+    if (e.dotTimer > 0) { ctx.strokeStyle = 'rgba(132,204,22,0.7)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(e.x, e.y, e.radius + 3, 0, TAU); ctx.stroke() }
+    if (e.slowTimer > 0) { ctx.strokeStyle = 'rgba(147,197,253,0.8)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(e.x, e.y, e.radius + 5, 0, TAU); ctx.stroke() }
+  }
+
+  _renderBeams(ctx) {
+    for (const b of this.beams) {
+      ctx.strokeStyle = b.color; ctx.lineWidth = b.width; ctx.globalAlpha = 0.9
+      for (const s of b.segs) { ctx.beginPath(); ctx.moveTo(s[0], s[1]); ctx.lineTo(s[2], s[3]); ctx.stroke() }
+      ctx.globalAlpha = 1
+    }
+  }
+
+  _renderParticles(ctx) {
+    for (const p of this.particles) {
+      const a = Math.max(0, p.life / p.max)
+      if (p.type === 'screen') { ctx.globalAlpha = a; ctx.fillStyle = p.color; ctx.fillRect(0, 0, WIDTH, HEIGHT); ctx.globalAlpha = 1; continue }
+      if (p.type === 'text') {
+        ctx.globalAlpha = Math.min(1, a * 1.4); ctx.fillStyle = p.color
+        ctx.font = p.big ? 'bold 34px sans-serif' : 'bold 15px sans-serif'
+        ctx.textAlign = 'center'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.6)'
+        ctx.strokeText(p.text, p.x, p.y); ctx.fillText(p.text, p.x, p.y)
+        ctx.globalAlpha = 1; continue
+      }
+      if (p.type === 'flash') {
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.angle); ctx.globalAlpha = a
+        const g = ctx.createRadialGradient(0, 0, 1, 0, 0, 14)
+        g.addColorStop(0, '#fff'); g.addColorStop(0.4, p.color); g.addColorStop(1, 'rgba(0,0,0,0)')
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, 10 * a + 4, 0, TAU); ctx.fill()
+        ctx.restore(); ctx.globalAlpha = 1; continue
+      }
+      if (p.type === 'ring') {
+        const t = 1 - a
+        ctx.globalAlpha = a * 0.9; ctx.strokeStyle = p.color; ctx.lineWidth = 3
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r * t + 6, 0, TAU); ctx.stroke()
+        ctx.globalAlpha = a * 0.35; ctx.fillStyle = p.color
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r * t * 0.7, 0, TAU); ctx.fill(); ctx.globalAlpha = 1; continue
+      }
+      if (p.type === 'debris') {
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.globalAlpha = a
+        ctx.fillStyle = p.color; ctx.fillRect(-p.size, -p.size, p.size * 2, p.size * 2)
+        ctx.restore(); ctx.globalAlpha = 1; continue
+      }
+      ctx.globalAlpha = a; ctx.fillStyle = p.color
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.size * a + 0.5, 0, TAU); ctx.fill(); ctx.globalAlpha = 1
+    }
+  }
+}

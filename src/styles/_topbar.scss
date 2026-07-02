@@ -1,0 +1,54 @@
+@use 'variables' as *;
+@use 'mixins' as *;
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+
+  &__stats {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    flex: 1;
+  }
+}
+
+.stat {
+  background: $panel;
+  border: 1px solid $line;
+  border-radius: $radius;
+  padding: 7px 12px;
+  font-weight: 700;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  @include tabular;
+
+  &__ico { font-size: 15px; }
+
+  &.danger {
+    border-color: $danger;
+    color: #fca5a5;
+    animation: stat-pulse 1s infinite;
+  }
+}
+
+@keyframes stat-pulse {
+  50% { background: #3f1d1d; }
+}
+
+.lvl-pill {
+  background: $panel;
+  border: 1px solid $line;
+  border-radius: $radius;
+  padding: 6px 12px;
+  font-weight: 800;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+
+  small { color: $muted; font-weight: 500; font-size: 11px; }
+}

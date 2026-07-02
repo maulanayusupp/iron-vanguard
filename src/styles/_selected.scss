@@ -1,0 +1,57 @@
+@use 'variables' as *;
+
+.selected {
+  margin-top: 12px;
+  padding: 12px;
+  background: $panel-2;
+  border: 1px solid $line;
+  border-radius: $radius;
+
+  &__title {
+    margin: 0 0 8px;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  &__tag {
+    margin-left: auto;
+    font-style: normal;
+    color: var(--c, #{$accent});
+  }
+
+  &__dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--c);
+  }
+
+  &__rows > div {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    font-size: 14px;
+    border-bottom: 1px dashed $line;
+
+    span { color: $muted; }
+  }
+
+  &__skill {
+    font-size: 13px;
+    color: $muted;
+    margin: 4px 0 8px;
+    line-height: 1.4;
+  }
+
+  &__type { color: var(--c); }
+
+  &__actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+
+    .btn { flex: 1; }
+  }
+}

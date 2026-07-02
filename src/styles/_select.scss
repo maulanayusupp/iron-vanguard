@@ -1,0 +1,102 @@
+@use 'variables' as *;
+@use 'mixins' as *;
+
+.select {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 16px;
+
+  &__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+
+    h2 { margin: 0; }
+  }
+
+  &__spacer { width: 70px; }
+  &__stars { font-weight: 800; color: $warning; }
+}
+
+.chapter-row {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 12px;
+}
+
+.chapter-chip {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  background: $panel;
+  border: 1px solid $line;
+  border-left: 4px solid var(--c);
+  border-radius: $radius;
+  padding: 10px 14px;
+  color: $text;
+  cursor: pointer;
+  min-width: 92px;
+
+  small { color: $muted; font-size: 11px; }
+
+  &.active {
+    border-color: var(--c);
+    @include accent-ring;
+  }
+
+  &.locked { opacity: 0.4; }
+}
+
+.level-grid {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 8px;
+  margin-top: 14px;
+
+  @media (max-width: $bp-mobile) {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
+
+.level-cell {
+  position: relative;
+  aspect-ratio: 1;
+  border: 1px solid $line;
+  border-radius: 8px;
+  background: $panel-2;
+  color: $text;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 14px;
+
+  &:hover:not(:disabled) { border-color: $accent; }
+  &.cleared { background: #14321f; border-color: rgba($success, 0.35); }
+  &.boss { border-color: rgba($warning, 0.53); }
+  &.locked { opacity: 0.4; }
+
+  &__boss {
+    position: absolute;
+    top: 2px;
+    right: 4px;
+    font-size: 10px;
+    color: $warning;
+    font-style: normal;
+  }
+
+  &__stars {
+    position: absolute;
+    bottom: 1px;
+    left: 0;
+    right: 0;
+    font-size: 9px;
+    line-height: 1;
+    letter-spacing: -1px;
+
+    i { color: #3b4763; font-style: normal; }
+    i.on { color: $warning; }
+  }
+}

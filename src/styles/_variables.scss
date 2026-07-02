@@ -1,0 +1,20 @@
+// Design tokens (build-time). Runtime dynamic colours use the --c custom
+// property injected by the v-accent directive.
+
+$bg: #0b1220;
+$panel: #111c30;
+$panel-2: #16233a;
+$line: #24344f;
+$text: #e2e8f0;
+$muted: #94a3b8;
+$accent: #22d3ee;
+
+$success: #22c55e;
+$warning: #f59e0b;
+$danger: #ef4444;
+
+$radius: 10px;
+$radius-lg: 14px;
+
+$bp-tablet: 940px;
+$bp-mobile: 620px;

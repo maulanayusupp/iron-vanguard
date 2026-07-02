@@ -1,0 +1,30 @@
+@use 'variables' as *;
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: radial-gradient(1200px 600px at 50% -10%, #16243d 0%, $bg 60%);
+  color: $text;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  min-height: 100vh;
+  overscroll-behavior: none;
+}
+
+button {
+  font-family: inherit;
+}
+
+.muted {
+  color: $muted;
+}

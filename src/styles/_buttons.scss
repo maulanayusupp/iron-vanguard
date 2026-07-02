@@ -1,0 +1,45 @@
+@use 'variables' as *;
+
+.btn {
+  border: 1px solid $line;
+  background: $panel-2;
+  color: $text;
+  border-radius: $radius;
+  padding: 11px 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s, transform 0.05s;
+
+  &:hover:not(:disabled) { border-color: $accent; }
+  &:active:not(:disabled) { transform: translateY(1px); }
+  &:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  &.primary {
+    background: $accent;
+    color: #052027;
+    border-color: $accent;
+  }
+
+  &.ghost { background: transparent; }
+
+  &.big {
+    display: block;
+    width: 100%;
+    font-size: 16px;
+    padding: 15px;
+    margin: 8px 0;
+  }
+
+  &.sm { padding: 8px 12px; }
+
+  &.wave {
+    width: 100%;
+    background: linear-gradient(180deg, #0891b2, #0e7490);
+    border-color: #0e7490;
+    font-size: 15px;
+    padding: 13px;
+    margin-bottom: 12px;
+
+    &:hover:not(:disabled) { background: linear-gradient(180deg, #22d3ee, #0891b2); }
+  }
+}

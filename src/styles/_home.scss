@@ -1,0 +1,35 @@
+@use 'variables' as *;
+
+.home {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+
+  &__inner {
+    width: 100%;
+    max-width: 420px;
+    text-align: center;
+  }
+
+  &__logo {
+    font-size: clamp(30px, 9vw, 52px);
+    font-weight: 900;
+    letter-spacing: 1px;
+    margin: 0 0 4px;
+
+    span { color: $accent; }
+  }
+
+  &__tag {
+    color: $muted;
+    margin: 0 0 26px;
+  }
+
+  &__hint {
+    text-align: center;
+    color: $muted;
+    font-size: 12px;
+    margin-top: 8px;
+  }
+}
