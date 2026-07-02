@@ -11,14 +11,10 @@ import { shade } from '../helpers/color.js'
 
 const TAU = Math.PI * 2
 
-// A soft dark silhouette behind a body so units pop against the terrain.
+// Body drawing wrapper. Kept as a hook (shadowBlur was too costly with large
+// hordes, so separation now comes from each unit's ground-shadow ellipse).
 function outline(ctx, draw) {
-  ctx.save()
-  ctx.translate(0, 0)
-  ctx.shadowColor = 'rgba(0,0,0,0.55)'
-  ctx.shadowBlur = 4
   draw()
-  ctx.restore()
 }
 
 // Two-segment articulated limb from (x,y) to foot, bending at a knee.
