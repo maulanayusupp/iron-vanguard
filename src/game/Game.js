@@ -35,6 +35,7 @@ export class Game {
     this.turrets = []
     this.enemies = []
     this.projectiles = []
+    this.enemyShots = []
     this.beams = []
     this.particles = []
     this.heroes = []
@@ -242,6 +243,8 @@ export class Game {
       x: p.x, y: p.y, seg: 1, dist: 0, angle: 0,
       hp: Math.round(hp), maxHp: Math.round(hp), speed, reward: Math.round(reward), damage: def.damage,
       slowTimer: 0, slowFactor: 0, dotTimer: 0, dotDps: 0, dotType: 'fire', buffSpeed: 1, siegeTarget: null,
+      artCd: abilities && abilities.artillery ? rand() * abilities.artillery.interval : 0,
+      summonCd: abilities && abilities.summon ? abilities.summon.interval : 0,
       dead: false, reached: false,
     })
     if (champion) this._text(p.x, p.y, 'ELITE!', '#fbbf24')
@@ -280,6 +283,7 @@ export class Game {
     for (const t of this.turrets) this._updateTower(t, dt)
     for (const h of this.heroes) this._updateHero(h, dt)
     for (const p of this.projectiles) this._updateProjectile(p, dt)
+    for (const s of this.enemyShots) this._updateEnemyShot(s, dt)
     this._updateParticles(dt)
 
     if (this.beams.length) { for (const b of this.beams) b.life -= dt; this.beams = this.beams.filter((b) => b.life > 0) }
@@ -287,6 +291,7 @@ export class Game {
 
     this.enemies = this.enemies.filter((e) => !e.dead)
     this.projectiles = this.projectiles.filter((p) => !p.dead)
+    this.enemyShots = this.enemyShots.filter((s) => !s.dead)
 
     if (this.waveActive && !this.spawnQueue.length && !this.enemies.length) {
       this.waveActive = false; this.state.waveActive = false; this.state.wave += 1
@@ -316,6 +321,31 @@ export class Game {
         if (this.spin % 0.4 < dt) this._spark(tgt.x, tgt.y, '#fca5a5', 3)
         if (tgt.hp <= 0) this._destroyTower(tgt)
         return
+      }
+    }
+
+    // ranged siege: lob shells at towers from afar (keeps advancing)
+    if (e.abilities && e.abilities.artillery) {
+      e.artCd -= dt
+      if (e.artCd <= 0) {
+        const a = e.abilities.artillery
+        let tgt = null, td = a.range
+        for (const t of this.turrets) { const d = Math.hypot(t.x - e.x, t.y - e.y); if (d <= td) { td = d; tgt = t } }
+        if (tgt) {
+          e.artCd = a.interval
+          this.enemyShots.push({ x: e.x, y: e.y, target: tgt, speed: 260, dmg: a.dmg, splash: a.splash, dead: false })
+          this._muzzle(e.x, e.y, Math.atan2(tgt.y - e.y, tgt.x - e.x), '#fbbf24')
+        }
+      }
+    }
+    // summoner: periodically call reinforcements
+    if (e.abilities && e.abilities.summon) {
+      e.summonCd -= dt
+      if (e.summonCd <= 0) {
+        const s = e.abilities.summon
+        e.summonCd = s.interval
+        for (let i = 0; i < s.count; i++) this.spawnExtra.push({ type: s.into, at: { x: e.x + (i - s.count / 2) * 10, y: e.y } })
+        this._shock(e.x, e.y, 40, e.accent); this._spark(e.x, e.y, e.accent, 6)
       }
     }
 
@@ -491,6 +521,21 @@ export class Game {
     }
   }
 
+  // Enemy artillery shell → damages a tower (and towers in splash).
+  _updateEnemyShot(s, dt) {
+    const t = s.target
+    if (!t || t.hp <= 0 || !this.turrets.includes(t)) { s.dead = true; return }
+    const dx = t.x - s.x, dy = t.y - s.y, d = Math.hypot(dx, dy), move = s.speed * dt
+    if (d <= move + 6) {
+      this._explosion(t.x, t.y, s.splash, '#fbbf24'); audioService.explosion()
+      for (const o of this.turrets.slice()) {
+        const dd = Math.hypot(o.x - t.x, o.y - t.y)
+        if (dd <= s.splash) { o.hp -= o === t ? s.dmg : s.dmg * 0.5; if (o.hp <= 0) this._destroyTower(o) }
+      }
+      s.dead = true
+    } else { s.x += (dx / d) * move; s.y += (dy / d) * move }
+  }
+
   // dtype: DAMAGE_TYPES key or 'true' to bypass resist/armor.
   _damage(e, dmg, dtype = 'kinetic') {
     if (e.dead) return
@@ -504,6 +549,11 @@ export class Game {
       this._debris(e.x, e.y, e.color)
       if (e.champion) { this._explosion(e.x, e.y, e.radius * 1.6, '#fbbf24'); this._text(e.x, e.y, '+$' + e.reward, '#fbbf24') }
       if (e.boss) { this._explosion(e.x, e.y, e.radius * 2, e.color); audioService.explosion() }
+      if (e.abilities && e.abilities.deathBomb) {
+        const { radius, dmg } = e.abilities.deathBomb
+        this._explosion(e.x, e.y, radius, '#f97316'); audioService.explosion(); this._text(e.x, e.y - 6, 'BOOM!', '#f97316')
+        for (const t of this.turrets.slice()) { if (Math.hypot(t.x - e.x, t.y - e.y) <= radius) { t.hp -= dmg; if (t.hp <= 0) this._destroyTower(t) } }
+      }
       if (e.abilities && e.abilities.split) {
         const { into, count } = e.abilities.split
         for (let i = 0; i < count; i++) this.spawnExtra.push({ type: into, at: { x: e.x + (i - count / 2) * 8, y: e.y } })
@@ -585,6 +635,12 @@ export class Game {
         for (const e of this.enemies) { e.dotDps = ef.dps; e.dotTimer = ef.dur; e.dotType = 'fire' }
         for (const e of this._leaders(8)) this._explosion(e.x, e.y, 40, '#fb923c')
         this._flash('rgba(251,146,60,0.3)'); break
+      case 'carpet_bomb':
+        for (const c of this._leaders(ef.count)) {
+          this._explosion(c.x, c.y, ef.radius, '#f97316')
+          for (const e of this.enemies) if (Math.hypot(e.x - c.x, e.y - c.y) <= ef.radius) this._damage(e, ef.amount, 'explosive')
+        }
+        audioService.explosion(); this._flash('rgba(249,115,22,0.2)'); break
     }
   }
 
@@ -669,8 +725,18 @@ export class Game {
     for (const t of this.turrets) this._renderTower(ctx, t)
     for (const e of this.enemies) this._renderEnemy(ctx, e)
     this._renderProjectiles(ctx)
+    this._renderEnemyShots(ctx)
     this._renderBeams(ctx)
     this._renderParticles(ctx)
+  }
+
+  _renderEnemyShots(ctx) {
+    for (const s of this.enemyShots) {
+      const g = ctx.createRadialGradient(s.x, s.y, 1, s.x, s.y, 7)
+      g.addColorStop(0, '#fff7ed'); g.addColorStop(0.5, '#fbbf24'); g.addColorStop(1, 'rgba(249,115,22,0)')
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(s.x, s.y, 7, 0, TAU); ctx.fill()
+      ctx.fillStyle = '#7c2d12'; ctx.beginPath(); ctx.arc(s.x, s.y, 2.5, 0, TAU); ctx.fill()
+    }
   }
 
   _renderTower(ctx, t) {

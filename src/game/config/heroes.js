@@ -67,6 +67,12 @@ export const HEROES = {
     passive: { radius: 3.4 * TILE, damageMult: 1.22, fireMult: 1.12 },
     skill: { name: 'Rally', cooldown: 34, desc: '+60% damage & +40% fire rate for 6s.', effect: { type: 'buff_towers', damageMult: 1.6, fireMult: 1.4, dur: 6 } },
   },
+  bombardier: {
+    name: 'Bombardier', rarity: 'legend', sprite: 'hero_grenade', color: '#f97316',
+    attack: { mode: 'projectile', dtype: 'explosive', range: 3 * TILE, damage: 44, fireRate: 1.3, projSpeed: 440, splash: 56 },
+    passive: { radius: 3 * TILE, damageMult: 1.15 },
+    skill: { name: 'Carpet Bomb', cooldown: 28, desc: 'Rain explosions across the leading enemies.', effect: { type: 'carpet_bomb', amount: 260, count: 6, radius: 72 } },
+  },
   stormcaller: {
     name: 'Stormcaller', rarity: 'legend', sprite: 'hero_mage', color: '#a78bfa',
     attack: { mode: 'hitscan', dtype: 'energy', range: 3 * TILE, damage: 36, fireRate: 1.6, chain: { jumps: 4, range: 110 } },

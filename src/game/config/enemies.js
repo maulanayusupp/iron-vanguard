@@ -103,6 +103,37 @@ export const ENEMIES = {
     abilities: { regen: 18 },
   },
 
+  imp: {
+    name: 'Imp', class: 'ground', hp: 40, speed: 168, reward: 9, damage: 1, radius: 10,
+    armor: 0, res: { fire: 1.5, explosive: 1.4 }, sprite: 'imp', color: '#b91c1c', accent: '#fde047',
+  },
+  bomber: {
+    name: 'Bomber', class: 'ground', hp: 120, speed: 98, reward: 24, damage: 2, radius: 15,
+    armor: 0, res: { fire: 1.6, energy: 1.2 }, sprite: 'bomber', color: '#3f3f46', accent: '#f97316',
+    // Detonates on death, damaging nearby TOWERS.
+    abilities: { deathBomb: { radius: 1.6 * 64, dmg: 90 } },
+  },
+  golem: {
+    name: 'Stone Golem', class: 'ground', hp: 950, speed: 38, reward: 72, damage: 7, radius: 24,
+    armor: 0.5, res: { kinetic: 0.4, explosive: 1.35, energy: 1.1, fire: 0.8 }, sprite: 'golem', color: '#78716c', accent: '#f59e0b',
+  },
+  artillery: {
+    name: 'Siege Walker', class: 'ground', hp: 340, speed: 44, reward: 50, damage: 3, radius: 20,
+    armor: 0.3, res: { kinetic: 0.6, explosive: 1.4, energy: 1.3 }, sprite: 'artillery', color: '#57534e', accent: '#fbbf24',
+    // Lobs shells at your towers from range (splash).
+    abilities: { artillery: { range: 3.2 * 64, dmg: 46, interval: 2.6, splash: 46 } },
+  },
+  summoner: {
+    name: 'Summoner', class: 'ground', hp: 300, speed: 58, reward: 54, damage: 3, radius: 17,
+    armor: 0, res: { energy: 1.6, fire: 1.3 }, sprite: 'summoner', color: '#7c3aed', accent: '#e9d5ff',
+    // Periodically summons imps.
+    abilities: { summon: { into: 'imp', count: 2, interval: 4.5 } },
+  },
+  behemoth: {
+    name: 'Behemoth', class: 'ground', hp: 1700, speed: 40, reward: 95, damage: 8, radius: 28,
+    armor: 0.2, res: { fire: 1.7, kinetic: 0.7 }, sprite: 'brute', color: '#4d7c0f', accent: '#1a2e05',
+  },
+
   // ---- bosses ----
   mech: {
     name: 'Battle Mech', class: 'ground', hp: 1500, speed: 42, reward: 130, damage: 10, radius: 28,

@@ -375,6 +375,92 @@ function sapper(ctx, r, color, accent, anim) {
   ctx.globalAlpha = blink; ctx.fillStyle = accent; ctx.beginPath(); ctx.arc(-r * 0.2, 0, r * 0.18, 0, TAU); ctx.fill(); ctx.globalAlpha = 1
 }
 
+function imp(ctx, r, color, accent, anim) {
+  const w = anim ? anim.walk : 0, dk = shade(color, -30)
+  const step = Math.sin(w * 2) * r * 0.3
+  ctx.strokeStyle = dk; ctx.lineWidth = r * 0.14; ctx.lineCap = 'round'
+  ctx.beginPath(); ctx.moveTo(0, -r * 0.3); ctx.lineTo(step, -r * 0.72); ctx.stroke()
+  ctx.beginPath(); ctx.moveTo(0, r * 0.3); ctx.lineTo(-step, r * 0.72); ctx.stroke()
+  ctx.strokeStyle = color; ctx.lineWidth = r * 0.1
+  ctx.beginPath(); ctx.moveTo(-r * 0.4, 0); ctx.quadraticCurveTo(-r * 0.9, step * 0.5, -r * 0.85, -r * 0.4); ctx.stroke()
+  const g = ctx.createRadialGradient(-r * 0.1, -r * 0.2, 1, 0, 0, r * 0.7); g.addColorStop(0, shade(color, 25)); g.addColorStop(1, color)
+  outline(ctx, () => { ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(0, 0, r * 0.55, r * 0.5, 0, 0, TAU); ctx.fill() })
+  ctx.fillStyle = shade(color, -8); ctx.beginPath(); ctx.arc(r * 0.4, 0, r * 0.34, 0, TAU); ctx.fill()
+  ctx.strokeStyle = accent; ctx.lineWidth = r * 0.09
+  ctx.beginPath(); ctx.moveTo(r * 0.5, -r * 0.25); ctx.lineTo(r * 0.82, -r * 0.46); ctx.moveTo(r * 0.5, r * 0.25); ctx.lineTo(r * 0.82, r * 0.46); ctx.stroke()
+  ctx.fillStyle = accent; ctx.beginPath(); ctx.arc(r * 0.5, -r * 0.1, r * 0.08, 0, TAU); ctx.fill(); ctx.beginPath(); ctx.arc(r * 0.5, r * 0.1, r * 0.08, 0, TAU); ctx.fill()
+}
+
+function golem(ctx, r, color, accent, anim) {
+  const w = anim ? anim.walk : 0, dk = shade(color, -30), lt = shade(color, 18)
+  const step = Math.sin(w) * r * 0.12
+  ctx.fillStyle = dk
+  rr(ctx, -r * 0.15 + step, -r * 0.95, r * 0.5, r * 0.5, r * 0.1); ctx.fill()
+  rr(ctx, -r * 0.15 - step, r * 0.45, r * 0.5, r * 0.5, r * 0.1); ctx.fill()
+  ctx.fillStyle = lt
+  ctx.beginPath(); ctx.arc(r * 0.2, -r * 0.72, r * 0.3, 0, TAU); ctx.fill()
+  ctx.beginPath(); ctx.arc(r * 0.2, r * 0.72, r * 0.3, 0, TAU); ctx.fill()
+  const g = ctx.createLinearGradient(0, -r, 0, r); g.addColorStop(0, lt); g.addColorStop(1, dk)
+  outline(ctx, () => {
+    ctx.fillStyle = g; ctx.beginPath()
+    ctx.moveTo(-r * 0.6, -r * 0.3); ctx.lineTo(-r * 0.2, -r * 0.78); ctx.lineTo(r * 0.5, -r * 0.5)
+    ctx.lineTo(r * 0.72, r * 0.1); ctx.lineTo(r * 0.3, r * 0.72); ctx.lineTo(-r * 0.4, r * 0.6); ctx.lineTo(-r * 0.72, r * 0.1)
+    ctx.closePath(); ctx.fill()
+  })
+  ctx.strokeStyle = accent; ctx.lineWidth = r * 0.06; ctx.globalAlpha = 0.85
+  ctx.beginPath(); ctx.moveTo(-r * 0.3, -r * 0.3); ctx.lineTo(0, 0); ctx.lineTo(-r * 0.1, r * 0.4); ctx.moveTo(0, 0); ctx.lineTo(r * 0.4, r * 0.05); ctx.stroke(); ctx.globalAlpha = 1
+  ctx.fillStyle = shade(color, -14); ctx.beginPath(); ctx.arc(r * 0.55, 0, r * 0.24, 0, TAU); ctx.fill()
+  ctx.fillStyle = accent; ctx.beginPath(); ctx.arc(r * 0.6, -r * 0.08, r * 0.05, 0, TAU); ctx.fill(); ctx.beginPath(); ctx.arc(r * 0.6, r * 0.08, r * 0.05, 0, TAU); ctx.fill()
+}
+
+function bomber(ctx, r, color, accent, anim) {
+  const w = anim ? anim.walk : 0, s = anim ? anim.spin : 0
+  const step = Math.sin(w * 1.6) * r * 0.25
+  ctx.strokeStyle = '#1f2937'; ctx.lineWidth = r * 0.14; ctx.lineCap = 'round'
+  ctx.beginPath(); ctx.moveTo(0, -r * 0.3); ctx.lineTo(step, -r * 0.75); ctx.stroke()
+  ctx.beginPath(); ctx.moveTo(0, r * 0.3); ctx.lineTo(-step, r * 0.75); ctx.stroke()
+  const g = ctx.createRadialGradient(-r * 0.2, -r * 0.25, 1, 0, 0, r * 0.75); g.addColorStop(0, shade(color, 34)); g.addColorStop(1, '#18181b')
+  outline(ctx, () => { ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, r * 0.72, 0, TAU); ctx.fill() })
+  ctx.strokeStyle = '#3f3f46'; ctx.lineWidth = r * 0.1; ctx.beginPath(); ctx.arc(0, 0, r * 0.5, 0, TAU); ctx.stroke()
+  ctx.fillStyle = '#52525b'; ctx.fillRect(r * 0.3, -r * 0.12, r * 0.25, r * 0.24)
+  ctx.strokeStyle = '#a16207'; ctx.lineWidth = r * 0.06
+  ctx.beginPath(); ctx.moveTo(r * 0.55, 0); ctx.quadraticCurveTo(r * 0.82, -r * 0.2, r * 0.75, -r * 0.42); ctx.stroke()
+  const blink = 0.4 + 0.6 * Math.abs(Math.sin(s * 12))
+  ctx.globalAlpha = blink; ctx.fillStyle = accent; ctx.beginPath(); ctx.arc(r * 0.75, -r * 0.44, r * 0.12, 0, TAU); ctx.fill(); ctx.globalAlpha = 1
+  ctx.fillStyle = '#fca5a5'; ctx.beginPath(); ctx.arc(r * 0.2, -r * 0.15, r * 0.07, 0, TAU); ctx.fill(); ctx.beginPath(); ctx.arc(r * 0.2, r * 0.15, r * 0.07, 0, TAU); ctx.fill()
+}
+
+function artillery(ctx, r, color, accent, anim) {
+  const spin = (anim ? anim.walk : 0) * 6, dk = shade(color, -28), lt = shade(color, 14)
+  ctx.fillStyle = '#0b0e14'
+  for (const wx of [-r * 0.5, r * 0.4]) for (const wy of [-r * 0.7, r * 0.7]) {
+    ctx.save(); ctx.translate(wx, wy); ctx.rotate(spin); rr(ctx, -r * 0.24, -r * 0.24, r * 0.48, r * 0.48, r * 0.1); ctx.fill(); ctx.restore()
+  }
+  const g = ctx.createLinearGradient(0, -r, 0, r); g.addColorStop(0, lt); g.addColorStop(1, dk)
+  outline(ctx, () => { ctx.fillStyle = g; rr(ctx, -r * 0.7, -r * 0.5, r * 1.3, r * 1.0, r * 0.16); ctx.fill() })
+  ctx.save(); ctx.translate(r * 0.1, 0); ctx.rotate(-0.5)
+  ctx.fillStyle = '#111827'; rr(ctx, 0, -r * 0.22, r * 1.1, r * 0.44, r * 0.1); ctx.fill()
+  ctx.fillStyle = accent; ctx.beginPath(); ctx.arc(r * 1.1, 0, r * 0.12, 0, TAU); ctx.fill()
+  ctx.restore()
+  ctx.fillStyle = dk; ctx.beginPath(); ctx.arc(-r * 0.5, 0, r * 0.28, 0, TAU); ctx.fill()
+}
+
+function summoner(ctx, r, color, accent, anim) {
+  const s = anim ? anim.spin : 0, dk = shade(color, -25)
+  ctx.save(); ctx.rotate(s * 2); ctx.strokeStyle = accent; ctx.globalAlpha = 0.55; ctx.lineWidth = r * 0.06
+  ctx.beginPath(); ctx.arc(0, 0, r * 0.85, 0, TAU); ctx.stroke()
+  for (let i = 0; i < 6; i++) { const a = i / 6 * TAU; ctx.beginPath(); ctx.moveTo(Math.cos(a) * r * 0.7, Math.sin(a) * r * 0.7); ctx.lineTo(Math.cos(a) * r * 0.9, Math.sin(a) * r * 0.9); ctx.stroke() }
+  ctx.globalAlpha = 1; ctx.restore()
+  const g = ctx.createLinearGradient(-r, 0, r, 0); g.addColorStop(0, dk); g.addColorStop(1, color)
+  outline(ctx, () => { ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(r * 0.55, 0); ctx.lineTo(-r * 0.5, -r * 0.6); ctx.lineTo(-r * 0.3, 0); ctx.lineTo(-r * 0.5, r * 0.6); ctx.closePath(); ctx.fill() })
+  ctx.fillStyle = shade(color, 18); ctx.beginPath(); ctx.arc(r * 0.05, 0, r * 0.35, 0, TAU); ctx.fill()
+  ctx.fillStyle = '#0b0620'; ctx.beginPath(); ctx.arc(r * 0.14, 0, r * 0.2, 0, TAU); ctx.fill()
+  ctx.fillStyle = accent; ctx.beginPath(); ctx.arc(r * 0.2, -r * 0.08, r * 0.06, 0, TAU); ctx.fill(); ctx.beginPath(); ctx.arc(r * 0.2, r * 0.08, r * 0.06, 0, TAU); ctx.fill()
+  const pulse = 0.6 + 0.4 * Math.sin(s * 6)
+  const og = ctx.createRadialGradient(r * 0.8, 0, 1, r * 0.8, 0, r * 0.28); og.addColorStop(0, '#fff'); og.addColorStop(1, accent)
+  ctx.globalAlpha = pulse; ctx.fillStyle = og; ctx.beginPath(); ctx.arc(r * 0.8, 0, r * 0.22, 0, TAU); ctx.fill(); ctx.globalAlpha = 1
+}
+
 const ENEMY_ROUTINES = {
   soldier: (c, r, col, ac, a) => soldier(c, r, col, ac, false, a),
   soldier_heavy: (c, r, col, ac, a) => soldier(c, r, col, ac, true, a),
@@ -383,6 +469,7 @@ const ENEMY_ROUTINES = {
   tank_heavy: (c, r, col, ac, a) => tank(c, r, col, ac, true, a),
   jeep, apc, drone, heli, mech,
   spider, hound, brute, wasp, slime, wraith, sapper,
+  imp, golem, bomber, artillery, summoner,
 }
 
 export function drawEnemy(ctx, e, spin) {
