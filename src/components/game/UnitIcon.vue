@@ -29,7 +29,7 @@ function render() {
     drawTower(ctx, { x: 0, y: 0, level: 1, recoil: 0 }, TOWERS[props.itemKey], -Math.PI / 6, 0.6)
   } else {
     const def = HEROES[props.itemKey]
-    drawHero(ctx, { x: 0, y: 0, angle: -Math.PI / 6, recoil: 0 }, def, RARITY[def.rarity].color, 0.6)
+    drawHero(ctx, { x: 0, y: 0, angle: -Math.PI / 6, recoil: 0, key: props.itemKey }, def, RARITY[def.rarity].color, 0.6)
   }
   ctx.restore()
 }
