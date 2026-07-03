@@ -5,9 +5,12 @@ import { useProgress } from '../../composables/useProgress.js'
 import { levelService } from '../../services/level.service.js'
 import { AmbientScene } from '../../game/ambient.js'
 import { APP_NAME_LEAD, APP_NAME_ACCENT, APP_TAGLINE } from '../../constants/app.js'
+import { useSettings } from '../../composables/useSettings.js'
+import { t } from '../../i18n/index.js'
 
+const { reduceMotion } = useSettings()
 const { progress, totalStars } = useProgress()
-const emit = defineEmits(['continue', 'select', 'restart'])
+const emit = defineEmits(['continue', 'select', 'restart', 'endless', 'bossrush', 'puzzles', 'bestiary', 'settings'])
 
 const maxLevel = levelService.MAX_LEVEL
 const chapters = levelService.chapterCount
@@ -17,7 +20,7 @@ const tagline = APP_TAGLINE
 
 const sceneRef = ref(null)
 let scene = null
-onMounted(() => { scene = new AmbientScene(sceneRef.value); scene.start() })
+onMounted(() => { if (!reduceMotion.value && sceneRef.value) { scene = new AmbientScene(sceneRef.value); scene.start() } })
 onUnmounted(() => { if (scene) scene.stop() })
 </script>
 
@@ -47,20 +50,29 @@ onUnmounted(() => { if (scene) scene.stop() })
       <p class="home__tag">{{ tagline }}</p>
 
       <div class="home__stats">
-        <div class="chip"><b>Lv {{ progress }}</b><small>Progress</small></div>
-        <div class="chip"><b>⭐ {{ totalStars }}</b><small>Stars</small></div>
-        <div class="chip"><b>{{ chapters }}</b><small>Chapters</small></div>
+        <div class="chip"><b>Lv {{ progress }}</b><small>{{ t('chip.progress') }}</small></div>
+        <div class="chip"><b>⭐ {{ totalStars }}</b><small>{{ t('chip.stars') }}</small></div>
+        <div class="chip"><b>{{ chapters }}</b><small>{{ t('chip.chapters') }}</small></div>
       </div>
 
       <div class="home__actions">
         <AppButton variant="primary big" @click="emit('continue', progress)">
-          ▶ Continue — Level {{ progress }}
+          {{ t('home.continue', { n: progress }) }}
         </AppButton>
-        <AppButton variant="big" @click="emit('select')">🗺️ Select Level</AppButton>
-        <AppButton variant="big" @click="emit('restart')">↻ Play from Level 1</AppButton>
+        <AppButton variant="big" @click="emit('select')">{{ t('home.select') }}</AppButton>
+        <AppButton variant="big" @click="emit('restart')">{{ t('home.restart') }}</AppButton>
+        <div class="home__row">
+          <AppButton @click="emit('endless')">{{ t('home.endless') }}</AppButton>
+          <AppButton @click="emit('bossrush')">{{ t('home.bossrush') }}</AppButton>
+          <AppButton @click="emit('puzzles')">{{ t('home.puzzles') }}</AppButton>
+        </div>
+        <div class="home__row">
+          <AppButton @click="emit('bestiary')">{{ t('home.bestiary') }}</AppButton>
+          <AppButton @click="emit('settings')">{{ t('home.settings') }}</AppButton>
+        </div>
       </div>
 
-      <p class="home__hint">Across {{ maxLevel }} levels of escalating warfare.</p>
+      <p class="home__hint">{{ t('home.hint', { n: maxLevel }) }}</p>
     </div>
   </div>
 </template>

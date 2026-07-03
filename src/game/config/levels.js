@@ -133,3 +133,47 @@ export function getLevelConfig(n) {
     totalWaves: waves.length,
   }
 }
+
+// ---- Endless mode: 150 escalating waves; the engine ramps HP each wave. ----
+export function getEndlessConfig() {
+  const rand = makeRng(Math.floor(Math.random() * 0x7fffffff) || 1)
+  const map = MAPS[Math.floor(rand() * MAPS.length)]
+  const theme = THEMES[Math.floor(rand() * THEMES.length)]
+  const pool = availableEnemies(60)
+  const N = 150
+  const waves = []
+  for (let i = 0; i < N; i++) {
+    const groups = []
+    const gc = 2 + Math.min(3, Math.floor(i / 8)) + (rand() < 0.5 ? 1 : 0)
+    for (let g = 0; g < gc; g++) {
+      const type = pool[Math.floor(rand() * pool.length)]
+      const def = ENEMIES[type]
+      const fast = def.speed > 100, tanky = def.hp > 500
+      const count = clamp(Math.round((8 + i * 1.5) * (fast ? 1.4 : 1) / (tanky ? 2.6 : 1)), 6, 220)
+      const interval = clamp((0.8 - i * 0.02) * (fast ? 0.6 : 1), 0.18, 0.8)
+      groups.push({ type, count, interval, delay: +(g * (0.8 + rand() * 2)).toFixed(2) })
+    }
+    if (i > 0 && i % 5 === 0) groups.push({ type: pickWaveBoss(60, rand), count: 1, interval: 1, delay: 2, waveBoss: true, tier: Math.floor(i / 2) })
+    waves.push(groups)
+  }
+  return { n: '∞', mode: 'endless', chapter: 0, zone: 0, map, theme, hpMult: 1, spdMult: 1.1, rewardMult: 1.4, startMoney: 400, baseHp: 40, waves, isBoss: false, totalWaves: N }
+}
+
+// ---- Boss Rush: 15 back-to-back boss waves. ----
+export function getBossRushConfig() {
+  const rand = makeRng(Math.floor(Math.random() * 0x7fffffff) || 1)
+  const map = MAPS[Math.floor(rand() * MAPS.length)]
+  const theme = THEMES[Math.floor(rand() * THEMES.length)]
+  const pool = availableEnemies(60)
+  const N = 15
+  const waves = []
+  for (let i = 0; i < N; i++) {
+    const b = i % 3 === 2 ? 'titan' : i % 3 === 1 ? 'commander' : 'mech'
+    waves.push([
+      { type: b, count: 1 + Math.floor(i / 5), interval: 2.5, delay: 0 },
+      { type: pool[Math.floor(rand() * pool.length)], count: 10 + i * 2, interval: 0.5, delay: 2 },
+      { type: pickWaveBoss(60, rand), count: 1, interval: 1, delay: 4, waveBoss: true, tier: i },
+    ])
+  }
+  return { n: 'BR', mode: 'bossrush', chapter: 0, zone: 0, map, theme, hpMult: 1.4, spdMult: 1.05, rewardMult: 1.6, startMoney: 600, baseHp: 40, waves, isBoss: true, totalWaves: N }
+}

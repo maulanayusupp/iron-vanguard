@@ -1,0 +1,34 @@
+@use 'variables' as *;
+@use 'mixins' as *;
+
+.settings {
+  @include card;
+  padding: 24px;
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+
+  &__title { margin: 0 0 4px; text-align: center; }
+  &__row { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-weight: 600; }
+}
+
+.seg {
+  display: flex;
+  gap: 6px;
+
+  button {
+    border: 1px solid $line;
+    background: $panel-2;
+    color: $muted;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-weight: 700;
+    cursor: pointer;
+
+    &.on { color: $text; border-color: $accent; background: #0e2436; }
+  }
+}
+
+.slider { flex: 1; max-width: 180px; accent-color: $accent; height: 4px; }

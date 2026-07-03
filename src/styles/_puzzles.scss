@@ -1,0 +1,43 @@
+@use 'variables' as *;
+
+.puzzles {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 16px;
+
+  &__head {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;
+    h2 { margin: 0; }
+  }
+  &__spacer { width: 70px; }
+  &__list { display: grid; gap: 10px; }
+}
+
+.puzzle-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  text-align: left;
+  background: $panel;
+  border: 1px solid $line;
+  border-radius: 12px;
+  padding: 14px 16px;
+  color: $text;
+  cursor: pointer;
+  transition: border-color 0.12s, transform 0.05s;
+
+  &:hover { border-color: $accent; }
+  &:active { transform: translateY(1px); }
+
+  &__no {
+    flex: 0 0 auto;
+    width: 34px; height: 34px;
+    display: grid; place-items: center;
+    border-radius: 8px;
+    background: $panel-2;
+    border: 1px solid $line;
+    font-weight: 800;
+  }
+  &__body { display: flex; flex-direction: column; b { font-size: 15px; } small { color: $muted; font-size: 12px; } }
+  &__done { margin-left: auto; color: $success; font-size: 22px; font-weight: 800; }
+}

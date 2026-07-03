@@ -43,8 +43,10 @@ export function useGame() {
   function onPointerMove(e) { if (game) game.handleMove(e.clientX, e.clientY) }
   function onPointerLeave() { if (game) game.handleLeave() }
 
+  function chooseModifier(id) { audioService.resume(); game.chooseModifier(id) }
   function startWave() { audioService.resume(); activeBuild.value = null; game.setBuild(null, null); game.startWave() }
   function upgrade() { game.upgradeSelected() }
+  function fuse() { game.fuseSelected() }
   function sell() { game.sellSelected() }
   function useSkill(key) { audioService.resume(); game.useSkill(key) }
   function toggleSpeed() { game.setSpeed(state.speed === 1 ? 2 : 1) }
@@ -55,6 +57,6 @@ export function useGame() {
     state, activeBuild, muted,
     mount, destroy,
     pickBuild, onPointerDown, onPointerMove, onPointerLeave,
-    startWave, upgrade, sell, useSkill, toggleSpeed, toggleMute, restart,
+    chooseModifier, startWave, upgrade, fuse, sell, useSkill, toggleSpeed, toggleMute, restart,
   }
 }

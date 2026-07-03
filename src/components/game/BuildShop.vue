@@ -5,6 +5,7 @@ import { TOWERS, TOWER_BASE_HP } from '../../game/config/towers.js'
 import { HERO_LIST, RARITY, HERO_SLOTS } from '../../game/config/heroes.js'
 import { typeLabel } from '../../game/config/damage.js'
 import { TILE } from '../../game/config/maps.js'
+import { t } from '../../i18n/index.js'
 
 const tiles = (px) => (px / TILE).toFixed(1) + 't'
 function towerStat(t) {
@@ -19,12 +20,15 @@ const props = defineProps({
   money: { type: Number, required: true },
   deployed: { type: Array, required: true },
   activeKey: { type: String, default: null },
+  allowed: { type: Array, default: null }, // restrict towers (puzzles)
+  heroesLocked: { type: Boolean, default: false },
 })
 const emit = defineEmits(['pick'])
 
 const tab = ref('towers')
 
-const towers = Object.entries(TOWERS).map(([key, def]) => ({ key, ...def }))
+const allTowers = Object.entries(TOWERS).map(([key, def]) => ({ key, ...def }))
+const towers = computed(() => (props.allowed ? allTowers.filter((t) => props.allowed.includes(t.key)) : allTowers))
 const heroes = HERO_LIST.map((h) => ({ ...h, rarityColor: RARITY[h.rarity].color, rarityLabel: RARITY[h.rarity].label }))
 
 const heroSlots = HERO_SLOTS
@@ -35,20 +39,20 @@ const isDeployed = (key) => props.deployed.includes(key)
 <template>
   <div class="build-shop">
     <div class="tabs">
-      <button :class="{ on: tab === 'towers' }" @click="tab = 'towers'">🔫 Towers</button>
-      <button :class="{ on: tab === 'heroes' }" @click="tab = 'heroes'">
-        🦸 Heroes {{ deployedCount }}/{{ heroSlots }}
+      <button :class="{ on: tab === 'towers' }" @click="tab = 'towers'">{{ t('shop.towers') }}</button>
+      <button v-if="!heroesLocked" :class="{ on: tab === 'heroes' }" @click="tab = 'heroes'">
+        {{ t('shop.heroes') }} {{ deployedCount }}/{{ heroSlots }}
       </button>
     </div>
 
     <div v-show="tab === 'towers'" class="shop">
       <ShopItem
-        v-for="t in towers" :key="t.key"
-        :color="t.color" :name="t.name" :badge="`💰${t.cost}`" :stats="towerStat(t)"
-        icon-kind="tower" :icon-key="t.key"
-        :active="activeKey === t.key" :dim="money < t.cost"
-        @select="emit('pick', 'tower', t.key)"
-      ><b>{{ t.dtype ? typeLabel(t.dtype) : 'Support' }}</b> · {{ t.desc }}</ShopItem>
+        v-for="tw in towers" :key="tw.key"
+        :color="tw.color" :name="tw.name" :badge="`💰${tw.cost}`" :stats="towerStat(tw)"
+        icon-kind="tower" :icon-key="tw.key"
+        :active="activeKey === tw.key" :dim="money < tw.cost"
+        @select="emit('pick', 'tower', tw.key)"
+      ><b>{{ tw.dtype ? typeLabel(tw.dtype) : t('shop.support') }}</b> · {{ tw.desc }}</ShopItem>
     </div>
 
     <div v-show="tab === 'heroes'" class="shop">

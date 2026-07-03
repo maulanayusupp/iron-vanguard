@@ -1,14 +1,19 @@
 // Domain logic for levels & chapters. Components ask this service for view
 // models instead of importing the generator directly.
 
-import { getLevelConfig, MAX_LEVEL, CHAPTER_SIZE, chapterCount } from '../game/config/levels.js'
+import { getLevelConfig, getEndlessConfig, getBossRushConfig, MAX_LEVEL, CHAPTER_SIZE, chapterCount } from '../game/config/levels.js'
+import { getPuzzleConfig, PUZZLES } from '../game/config/puzzles.js'
 
 export const levelService = {
   MAX_LEVEL,
   CHAPTER_SIZE,
   chapterCount,
+  PUZZLES,
 
   getConfig: getLevelConfig,
+  getEndless: getEndlessConfig,
+  getBossRush: getBossRushConfig,
+  getPuzzle: getPuzzleConfig,
 
   chapterOf(level) {
     return Math.floor((level - 1) / CHAPTER_SIZE) + 1

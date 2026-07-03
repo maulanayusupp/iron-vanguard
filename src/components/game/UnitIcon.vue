@@ -2,9 +2,10 @@
 // Renders a small thumbnail of a tower/hero using the real in-game sprite
 // (drawTower / drawHero), so the shop shows actual unit shapes, not just dots.
 import { ref, onMounted, watch } from 'vue'
-import { drawTower, drawHero } from '../../game/sprites.js'
+import { drawTower, drawHero, drawEnemy } from '../../game/sprites.js'
 import { TOWERS } from '../../game/config/towers.js'
 import { HEROES, RARITY } from '../../game/config/heroes.js'
+import { ENEMIES } from '../../game/config/enemies.js'
 
 const props = defineProps({
   kind: { type: String, required: true }, // 'tower' | 'hero'
@@ -27,6 +28,11 @@ function render() {
   ctx.scale(0.52, 0.52) // fit the ~s=20 sprite (long barrels included) into the tile
   if (props.kind === 'tower') {
     drawTower(ctx, { x: 0, y: 0, level: 1, recoil: 0 }, TOWERS[props.itemKey], -Math.PI / 6, 0.6)
+  } else if (props.kind === 'enemy') {
+    const d = ENEMIES[props.itemKey]
+    const scale = Math.min(1, 20 / d.radius) // fit big enemies into the tile
+    ctx.scale(scale, scale)
+    drawEnemy(ctx, { x: 0, y: 0, angle: -Math.PI / 8, dist: 40, class: d.class, sprite: d.sprite, color: d.color, accent: d.accent, radius: d.radius }, 0.6)
   } else {
     const def = HEROES[props.itemKey]
     drawHero(ctx, { x: 0, y: 0, angle: -Math.PI / 6, recoil: 0, key: props.itemKey }, def, RARITY[def.rarity].color, 0.6)

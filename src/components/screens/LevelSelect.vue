@@ -5,6 +5,7 @@ import ChapterChip from '../select/ChapterChip.vue'
 import LevelCell from '../select/LevelCell.vue'
 import { useProgress } from '../../composables/useProgress.js'
 import { levelService } from '../../services/level.service.js'
+import { t } from '../../i18n/index.js'
 
 const emit = defineEmits(['back', 'play'])
 const { progress, stars, totalStars } = useProgress()
@@ -18,8 +19,8 @@ const levels = computed(() => levelService.levelsInChapter(selectedChapter.value
 <template>
   <div class="select">
     <header class="select__head">
-      <AppButton variant="ghost" @click="emit('back')">← Back</AppButton>
-      <h2>Select Level</h2>
+      <AppButton variant="ghost" @click="emit('back')">{{ t('common.back') }}</AppButton>
+      <h2>{{ t('select.title') }}</h2>
       <span class="select__stars">⭐ {{ totalStars }}</span>
     </header>
 

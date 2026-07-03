@@ -3,6 +3,7 @@ import { TOWERS, MAX_LEVEL as TOWER_MAX, TOWER_BASE_HP, TOWER_HP_PER_LEVEL, dama
 import { ENEMIES } from './config/enemies.js'
 import { HEROES, HERO_SLOTS, RARITY } from './config/heroes.js'
 import { DAMAGE_TYPES } from './config/damage.js'
+import { MODIFIERS, draftModifiers } from './config/modifiers.js'
 import { drawEnemy, drawTower, drawHero } from './sprites.js'
 import { pointerToCanvas } from '../helpers/canvas.js'
 import { audioService } from '../services/audio.service.js'
@@ -48,6 +49,11 @@ export class Game {
     this.spin = 0
     this.speedMult = 1
     this.lastTime = 0
+    this.shake = 0
+    this.slowmo = 0
+    this.combo = 0
+    this.comboTimer = 0
+    this.mod = { hp: 1, spd: 1, reward: 1, towerCost: 1, towerDmg: 1, towerFire: 1 }
 
     this.build = null
     this.selected = null
@@ -71,6 +77,27 @@ export class Game {
     s.selectedInfo = null
     s.heroSkills = []
     s.deployed = []
+    s.combo = 0
+    s.comboMult = 1
+    s.modName = ''
+    s.allowed = level.allowed || null
+    s.heroesLocked = level.mode === 'puzzle'
+    // puzzles have no roguelite draft (fixed challenge)
+    s.drafting = level.mode !== 'puzzle'
+    s.draftChoices = s.drafting ? draftModifiers(3) : []
+  }
+
+  chooseModifier(id) {
+    const m = MODIFIERS.find((x) => x.id === id)
+    if (!m || !this.state.drafting) return
+    this.mod.hp *= m.hp || 1; this.mod.spd *= m.spd || 1; this.mod.reward *= m.reward || 1
+    this.mod.towerCost *= m.towerCost || 1; this.mod.towerDmg *= m.towerDmg || 1; this.mod.towerFire *= m.towerFire || 1
+    if (m.money) this.state.money += m.money
+    if (m.baseHpMult) this.state.maxBaseHp = Math.round(this.state.maxBaseHp * m.baseHpMult)
+    if (m.baseHp) this.state.maxBaseHp += m.baseHp
+    this.state.baseHp = this.state.maxBaseHp
+    this.state.modName = m.name
+    this.state.drafting = false
   }
 
   start() { if (!this.running) { this.running = true; requestAnimationFrame(this._loop) } }
@@ -127,13 +154,14 @@ export class Game {
 
   _placeTower(col, row) {
     const def = TOWERS[this.build.key]
-    if (!def || !this.canBuild(col, row) || this.state.money < def.cost) return
-    this.state.money -= def.cost
+    const cost = Math.round(def.cost * this.mod.towerCost)
+    if (!def || !this.canBuild(col, row) || this.state.money < cost) return
+    this.state.money -= cost
     this.turrets.push({
       kind: 'tower', key: this.build.key, col, row,
       x: col * TILE + TILE / 2, y: row * TILE + TILE / 2,
-      level: 1, invested: def.cost, cooldown: 0, angle: -Math.PI / 2, recoil: 0,
-      hp: TOWER_BASE_HP, maxHp: TOWER_BASE_HP,
+      level: 1, invested: cost, cooldown: 0, angle: -Math.PI / 2, recoil: 0,
+      hp: TOWER_BASE_HP, maxHp: TOWER_BASE_HP, xp: 0, vet: 0,
       target: null, lockTarget: null, lockTime: 0,
     })
   }
@@ -166,7 +194,7 @@ export class Game {
     if (!e) { this.state.selectedInfo = null; return }
     if (e.kind === 'tower') {
       const def = TOWERS[e.key]
-      const up = def.cost * e.level
+      const up = Math.round(def.cost * e.level * this.mod.towerCost)
       const hasAtk = def.damage != null && def.fireRate != null
       const dps = hasAtk ? Math.round(damageAtLevel(def.damage, e.level) * fireRateAtLevel(def.fireRate, e.level) * (def.multishot || 1)) : 0
       this.state.selectedInfo = {
@@ -178,6 +206,9 @@ export class Game {
         note: def.mode === 'income' ? `Mints +$${def.income} every ${def.incomeInterval}s`
           : def.mode === 'support' ? `Aura: +${Math.round((def.buff.damageMult - 1) * 100)}% dmg, +${Math.round((def.buff.fireMult - 1) * 100)}% rate` : '',
         canUpgrade: e.level < TOWER_MAX && hasAtk, upgradeCost: up, canAfford: this.state.money >= up, sellValue: Math.floor(e.invested * 0.6),
+        fused: !!e.fused,
+        canFuse: hasAtk && !e.fused && e.level >= TOWER_MAX && this.turrets.some((x) => x !== e && x.key === e.key && x.level >= TOWER_MAX && !x.fused),
+        vet: e.vet || 0, vetName: ['', 'Veteran', 'Elite', 'Ace'][e.vet || 0],
       }
     } else {
       const def = HEROES[e.key]
@@ -193,11 +224,26 @@ export class Game {
   upgradeSelected() {
     const t = this.selected
     if (!t || t.kind !== 'tower' || t.level >= TOWER_MAX) return
-    const cost = TOWERS[t.key].cost * t.level
+    const cost = Math.round(TOWERS[t.key].cost * t.level * this.mod.towerCost)
     if (this.state.money < cost) return
     this.state.money -= cost
     t.level += 1; t.invested += cost
     t.maxHp = TOWER_BASE_HP + (t.level - 1) * TOWER_HP_PER_LEVEL; t.hp = t.maxHp
+    this._refreshSelected()
+  }
+
+  // Merge two max-level towers of the same type into an evolved Lv5 super-tower.
+  fuseSelected() {
+    const t = this.selected
+    if (!t || t.kind !== 'tower' || t.level < TOWER_MAX || t.fused) return
+    const def = TOWERS[t.key]
+    if (def.mode === 'support' || def.mode === 'income') return
+    const other = this.turrets.find((x) => x !== t && x.key === t.key && x.level >= TOWER_MAX && !x.fused)
+    if (!other) return
+    this.turrets = this.turrets.filter((x) => x !== other)
+    t.level = 5; t.fused = true; t.invested += other.invested
+    t.maxHp += TOWER_HP_PER_LEVEL; t.hp = t.maxHp
+    this._explosion(t.x, t.y, 46, def.color); audioService.explosion(); this._text(t.x, t.y - 12, 'FUSED!', '#fde047')
     this._refreshSelected()
   }
 
@@ -214,7 +260,7 @@ export class Game {
   // ---- waves -------------------------------------------------------------
 
   startWave() {
-    if (this.waveActive || this.state.status !== 'playing') return
+    if (this.waveActive || this.state.status !== 'playing' || this.state.drafting) return
     const groups = this.level.waves[this.state.wave]
     if (!groups) return
     this.spawnQueue = []
@@ -228,8 +274,8 @@ export class Game {
 
   _spawn(type, opts = {}) {
     const def = ENEMIES[type]
-    let hp = def.hp * this.level.hpMult, radius = def.radius, reward = def.reward * this.level.rewardMult
-    let speed = def.speed * this.level.spdMult, armor = def.armor || 0
+    let hp = def.hp * this.level.hpMult * this.mod.hp, radius = def.radius, reward = def.reward * this.level.rewardMult * this.mod.reward
+    let speed = def.speed * this.level.spdMult * this.mod.spd, armor = def.armor || 0
     let abilities = def.abilities ? { ...def.abilities } : null
     const champion = !!opts.champion
     const waveBoss = !!opts.waveBoss
@@ -286,6 +332,10 @@ export class Game {
   update(dt) {
     if (this.state.status !== 'playing') return
     this.time += dt; this.spin += dt
+    if (this.shake > 0) this.shake = Math.max(0, this.shake - dt * 60)
+    if (this.comboTimer > 0) { this.comboTimer -= dt; if (this.comboTimer <= 0) this.combo = 0 }
+    this.state.combo = this.combo
+    this.state.comboMult = 1 + Math.min(1.5, Math.floor(this.combo / 4) * 0.1)
     if (this.buffs.length) this.buffs = this.buffs.filter((b) => b.expire > this.time)
 
     if (this.waveActive) {
@@ -329,7 +379,12 @@ export class Game {
 
     if (this.waveActive && !this.spawnQueue.length && !this.enemies.length) {
       this.waveActive = false; this.state.waveActive = false; this.state.wave += 1
-      this.state.money += 75 + this.state.wave * 16
+      if (this.level.mode === 'endless') { this.level.hpMult *= 1.09; this.level.spdMult = Math.min(1.9, this.level.spdMult * 1.01) }
+      if (this.level.mode !== 'puzzle') { // puzzles run on a fixed budget — no income
+        const interest = Math.min(150, Math.floor(this.state.money * 0.08))
+        this.state.money += 75 + this.state.wave * 16 + interest
+        if (interest > 0) this._text(WIDTH / 2, HEIGHT / 2 + 42, '+💰' + interest + ' interest', '#facc15')
+      }
       if (this.state.wave >= this.level.totalWaves) {
         const ratio = this.state.baseHp / this.state.maxBaseHp
         this.state.stars = ratio >= 0.9 ? 3 : ratio >= 0.5 ? 2 : 1
@@ -340,7 +395,7 @@ export class Game {
   }
 
   _moveEnemy(e, dt) {
-    if (e.dotTimer > 0) { e.dotTimer -= dt; this._damage(e, e.dotDps * dt, e.dotType) }
+    if (e.dotTimer > 0) { e.dotTimer -= dt; this._damage(e, e.dotDps * dt, e.dotType, true) }
     if (e.dead) return
     if (e.abilities && e.abilities.regen && e.hp < e.maxHp) e.hp = Math.min(e.maxHp, e.hp + e.abilities.regen * dt)
     if (e.slowTimer > 0) e.slowTimer -= dt
@@ -434,6 +489,9 @@ export class Game {
       }
     }
     for (const b of this.buffs) { dmg *= b.damageMult || 1; fire *= b.fireMult || 1 }
+    dmg *= this.mod.towerDmg; fire *= this.mod.towerFire
+    if (t.fused) { dmg *= 1.3; fire *= 1.15; range *= 1.1 } // fusion bonus on top of Lv5 stats
+    if (t.vet) dmg *= 1 + t.vet * 0.08 // veterancy bonus
     const damage = damageAtLevel(def.damage || 0, t.level) * dmg
     return {
       mode: def.mode, dtype: def.dtype, range: rangeAtLevel(def.range || 0, t.level) * range, minRange: def.minRange || 0,
@@ -493,6 +551,7 @@ export class Game {
   }
 
   _pulse(t, stats) {
+    this._gainXp(t)
     this.particles.push({ type: 'shock', x: t.x, y: t.y, r: stats.range, color: stats.color, life: 0.35, max: 0.35 })
     audioService.shoot(stats.pitch)
     for (const e of this.enemies) {
@@ -597,8 +656,19 @@ export class Game {
     }
   }
 
+  _gainXp(t) {
+    t.xp = (t.xp || 0) + 1
+    const nv = t.xp >= 280 ? 3 : t.xp >= 120 ? 2 : t.xp >= 40 ? 1 : 0
+    if (nv > (t.vet || 0)) {
+      t.vet = nv
+      this._text(t.x, t.y - 16, ['', 'VETERAN', 'ELITE', 'ACE'][nv], '#fde047'); this._spark(t.x, t.y, '#fde047', 6)
+      if (this.selected === t) this._refreshSelected()
+    }
+  }
+
   _fire(unit, stats, target) {
     unit.recoil = 1
+    if (unit.kind === 'tower') this._gainXp(unit)
     const bx = unit.x + Math.cos(unit.angle) * 22, by = unit.y + Math.sin(unit.angle) * 22
     this._muzzle(bx, by, unit.angle, stats.color)
     audioService.shoot(stats.pitch)
@@ -718,8 +788,29 @@ export class Game {
   }
 
   // dtype: DAMAGE_TYPES key or 'true' to bypass resist/armor.
-  _damage(e, dmg, dtype = 'kinetic') {
+  // isTick = true for damage-over-time ticks (skips elemental combos).
+  _damage(e, dmg, dtype = 'kinetic', isTick = false) {
     if (e.dead) return
+    // ---- elemental interactions (only on real hits) ----
+    if (!isTick && dtype !== 'true') {
+      const frozen = e.slowTimer > 0 && e.slowFactor >= 0.9
+      const chilled = e.slowTimer > 0
+      const burning = e.dotTimer > 0 && e.dotType === 'fire'
+      const poisoned = e.dotTimer > 0 && e.dotType === 'toxic'
+      if (dtype === 'explosive' && frozen) {
+        dmg *= 1.7; e.slowTimer = 0 // shatter consumes the freeze
+        this._spark(e.x, e.y, '#e0f2fe', 9); this._text(e.x, e.y, 'SHATTER!', '#bfdbfe')
+      } else if (dtype === 'energy' && chilled) {
+        dmg *= 1.4 // superconduct: chilled foes conduct — arc to a neighbour
+        let n = null, nd = 90
+        for (const o of this.enemies) { if (o === e || o.dead) continue; const d = Math.hypot(o.x - e.x, o.y - e.y); if (d < nd) { nd = d; n = o } }
+        if (n) { this.beams.push({ segs: [[e.x, e.y, n.x, n.y]], color: '#a78bfa', life: 0.09, width: 2, bolt: true }); this._damage(n, dmg * 0.5, 'energy', true) }
+        this._text(e.x, e.y, '⚡ CONDUCT', '#c4b5fd')
+      } else if ((dtype === 'fire' && poisoned) || (dtype === 'toxic' && burning)) {
+        const burst = Math.max(45, (e.dotDps || 0) * 2.6); dmg += burst; e.dotTimer = 0 // combust detonates the DoT
+        this._explosion(e.x, e.y, 42, '#f97316'); this._text(e.x, e.y, 'COMBUST!', '#fb923c')
+      }
+    }
     if (dtype !== 'true') {
       if (e.res && e.res[dtype]) dmg *= e.res[dtype]
       if (dtype === 'kinetic') dmg *= 1 - e.armor
@@ -727,11 +818,15 @@ export class Game {
     if (e.shieldTimer > 0) dmg *= 0.3 // active boss shield
     e.hp -= dmg
     if (e.hp <= 0) {
-      e.dead = true; this.state.money += e.reward; this.state.kills += 1
+      e.dead = true; this.state.kills += 1
+      // combo: fast successive kills pay escalating gold
+      this.combo++; this.comboTimer = 2.5
+      const cmult = 1 + Math.min(1.5, Math.floor(this.combo / 4) * 0.1)
+      this.state.money += Math.round(e.reward * cmult)
       this._debris(e.x, e.y, e.color)
-      if (e.champion) { this._explosion(e.x, e.y, e.radius * 1.6, '#fbbf24'); this._text(e.x, e.y, '+$' + e.reward, '#fbbf24') }
-      if (e.waveBoss) { this._explosion(e.x, e.y, e.radius * 2.2, '#f43f5e'); audioService.explosion(); this._text(e.x, e.y, 'BOSS DOWN', '#f43f5e', true) }
-      if (e.boss) { this._explosion(e.x, e.y, e.radius * 2, e.color); audioService.explosion() }
+      if (e.champion) { this._explosion(e.x, e.y, e.radius * 1.6, '#fbbf24'); this._text(e.x, e.y, '+$' + Math.round(e.reward * cmult), '#fbbf24') }
+      if (e.waveBoss) { this._explosion(e.x, e.y, e.radius * 2.2, '#f43f5e'); audioService.explosion(); this._text(e.x, e.y, 'BOSS DOWN', '#f43f5e', true); this.shake = 10; this.slowmo = Math.max(this.slowmo, 0.25) }
+      if (e.boss) { this._explosion(e.x, e.y, e.radius * 2, e.color); audioService.explosion(); this.shake = 12; this.slowmo = Math.max(this.slowmo, 0.3) }
       if (e.abilities && e.abilities.deathBomb) {
         const { radius, dmg } = e.abilities.deathBomb
         this._explosion(e.x, e.y, radius, '#f97316'); audioService.explosion(); this._text(e.x, e.y - 6, 'BOOM!', '#f97316')
@@ -758,7 +853,7 @@ export class Game {
     switch (sk) {
       case 'slam': { // ground-pound shockwave that smashes nearby turrets
         this._explosion(e.x, e.y, 130, '#f43f5e'); this._shock(e.x, e.y, 155, '#f43f5e'); this._flash('rgba(244,63,94,0.18)')
-        audioService.explosion(); this._text(e.x, e.y - e.radius, 'SLAM!', '#f43f5e', true)
+        audioService.explosion(); this._text(e.x, e.y - e.radius, 'SLAM!', '#f43f5e', true); this.shake = 9
         for (const t of this.turrets.slice()) if (Math.hypot(t.x - e.x, t.y - e.y) <= 145) { t.hp -= 85; if (t.hp <= 0) this._destroyTower(t) }
         break
       }
@@ -926,7 +1021,9 @@ export class Game {
     let dt = (ts - this.lastTime) / 1000
     this.lastTime = ts
     if (dt > 0.05) dt = 0.05
-    for (let i = 0; i < this.speedMult; i++) this.update(dt)
+    const tscale = this.slowmo > 0 ? 0.4 : 1
+    if (this.slowmo > 0) this.slowmo = Math.max(0, this.slowmo - dt)
+    for (let i = 0; i < this.speedMult; i++) this.update(dt * tscale)
     this.render()
     requestAnimationFrame(this._loop)
   }
@@ -935,7 +1032,9 @@ export class Game {
     const ctx = this.ctx
     const th = this.level.theme
     ctx.clearRect(0, 0, WIDTH, HEIGHT)
-    ctx.fillStyle = th.ground; ctx.fillRect(0, 0, WIDTH, HEIGHT)
+    ctx.save()
+    if (this.shake > 0.3) ctx.translate((rand() * 2 - 1) * this.shake, (rand() * 2 - 1) * this.shake)
+    ctx.fillStyle = th.ground; ctx.fillRect(-24, -24, WIDTH + 48, HEIGHT + 48)
 
     for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) { if (this.blocked.has(`${c},${r}`)) continue; ctx.fillStyle = th.grid; ctx.fillRect(c * TILE + 1, r * TILE + 1, TILE - 2, TILE - 2) }
 
@@ -963,6 +1062,7 @@ export class Game {
     this._renderSweeps(ctx)
     this._renderBeams(ctx)
     this._renderParticles(ctx)
+    ctx.restore()
   }
 
   _renderWells(ctx) {

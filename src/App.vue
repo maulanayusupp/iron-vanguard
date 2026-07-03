@@ -1,16 +1,32 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import HomeScreen from './components/screens/HomeScreen.vue'
 import LevelSelect from './components/screens/LevelSelect.vue'
 import GameScreen from './components/screens/GameScreen.vue'
+import BestiaryScreen from './components/screens/BestiaryScreen.vue'
+import PuzzleScreen from './components/screens/PuzzleScreen.vue'
+import SettingsModal from './components/game/SettingsModal.vue'
+import { levelService } from './services/level.service.js'
 
-const screen = ref('home') // 'home' | 'select' | 'game'
+const screen = ref('home') // 'home' | 'select' | 'game' | 'bestiary'
 const currentLevel = ref(1)
+const currentMode = ref('') // '' | 'endless' | 'bossrush'
+const showSettings = ref(false)
 
-function play(level) {
+function play(level, mode = '') {
   currentLevel.value = level
+  currentMode.value = mode
   screen.value = 'game'
 }
+
+// Deep link: ?mode=endless|bossrush  or  ?level=N  (shared seed)
+onMounted(() => {
+  const p = new URLSearchParams(window.location.search)
+  const m = p.get('mode')
+  const lv = parseInt(p.get('level'), 10)
+  if (m === 'endless' || m === 'bossrush') play(1, m)
+  else if (Number.isFinite(lv) && lv >= 1) play(Math.min(lv, levelService.MAX_LEVEL), '')
+})
 </script>
 
 <template>
@@ -19,19 +35,25 @@ function play(level) {
     @continue="play"
     @select="screen = 'select'"
     @restart="play(1)"
+    @endless="play(1, 'endless')"
+    @bossrush="play(1, 'bossrush')"
+    @puzzles="screen = 'puzzles'"
+    @bestiary="screen = 'bestiary'"
+    @settings="showSettings = true"
   />
 
-  <LevelSelect
-    v-else-if="screen === 'select'"
-    @back="screen = 'home'"
-    @play="play"
-  />
+  <LevelSelect v-else-if="screen === 'select'" @back="screen = 'home'" @play="play" />
+  <BestiaryScreen v-else-if="screen === 'bestiary'" @back="screen = 'home'" />
+  <PuzzleScreen v-else-if="screen === 'puzzles'" @back="screen = 'home'" @play="(id) => play(id, 'puzzle')" />
 
   <GameScreen
     v-else
-    :key="currentLevel"
+    :key="currentMode + '-' + currentLevel"
     :level="currentLevel"
+    :mode="currentMode"
     @exit="screen = 'home'"
     @change-level="play"
   />
+
+  <SettingsModal v-if="showSettings" @close="showSettings = false" />
 </template>

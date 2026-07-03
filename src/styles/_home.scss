@@ -90,6 +90,7 @@
     }
   }
 
+  &__row { display: flex; gap: 8px; margin-top: 4px; .btn { flex: 1; font-size: 14px; } }
   &__hint { text-align: center; color: $muted; font-size: 12px; margin: 14px 0 0; opacity: 0.85; }
 }
 

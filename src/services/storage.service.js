@@ -3,6 +3,7 @@
 
 const PROGRESS_KEY = 'wir_progress'
 const STARS_KEY = 'wir_stars'
+const SETTINGS_KEY = 'wir_settings'
 
 export const storageService = {
   getProgress() {
@@ -23,5 +24,30 @@ export const storageService = {
   },
   setStars(map) {
     localStorage.setItem(STARS_KEY, JSON.stringify(map))
+  },
+
+  // settings: { locale, volume, reduceMotion }
+  getSettings() {
+    try { return JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {} } catch (e) { return {} }
+  },
+  setSettings(s) {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(s))
+  },
+
+  // best score per mode ('endless' | 'bossrush') — waves cleared
+  getBest(mode) {
+    const v = Number(localStorage.getItem('wir_best_' + mode))
+    return Number.isFinite(v) ? v : 0
+  },
+  setBest(mode, waves) {
+    if (waves > this.getBest(mode)) localStorage.setItem('wir_best_' + mode, String(waves))
+  },
+
+  getSolvedPuzzles() {
+    try { return JSON.parse(localStorage.getItem('wir_puzzles')) || [] } catch (e) { return [] }
+  },
+  markPuzzle(id) {
+    const s = this.getSolvedPuzzles()
+    if (!s.includes(id)) { s.push(id); localStorage.setItem('wir_puzzles', JSON.stringify(s)) }
   },
 }

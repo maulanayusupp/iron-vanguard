@@ -8,7 +8,9 @@ let ctx = null
 let master = null
 let noise = null
 let muted = false
+let volume = 0.6 // 0..1 master volume
 let lastShot = 0
+const gain = () => (muted ? 0 : volume * 0.8)
 
 function ensure() {
   if (typeof window === 'undefined') return null
@@ -18,7 +20,7 @@ function ensure() {
     if (!AC) return null
     ctx = new AC()
     master = ctx.createGain()
-    master.gain.value = muted ? 0 : 0.5
+    master.gain.value = gain()
     master.connect(ctx.destination)
     const len = Math.floor(ctx.sampleRate * 0.5)
     noise = ctx.createBuffer(1, len, ctx.sampleRate)
@@ -54,8 +56,15 @@ export const audioService = {
 
   toggleMute() {
     muted = !muted
-    if (master) master.gain.value = muted ? 0 : 0.5
+    if (master) master.gain.value = gain()
     return muted
+  },
+
+  get volume() { return volume },
+  setVolume(v) {
+    volume = Math.max(0, Math.min(1, v))
+    if (master) master.gain.value = gain()
+    return volume
   },
 
   shoot(freq = 420) {

@@ -679,8 +679,22 @@ export function drawTower(ctx, t, def, angle, spin) {
   const s = 20
   ctx.save()
   ctx.translate(t.x, t.y)
+  if (t.fused) {
+    const g = 0.5 + 0.4 * Math.sin(spin * 6)
+    ctx.save(); ctx.globalAlpha = g; ctx.strokeStyle = '#fde047'; ctx.lineWidth = 2.5
+    ctx.beginPath(); ctx.arc(0, 0, s * 1.02, 0, TAU); ctx.stroke(); ctx.restore()
+  }
   towerBase(ctx, s, def.color)
-  for (let i = 0; i < t.level; i++) { ctx.fillStyle = '#fde68a'; ctx.fillRect(-s * 0.7 + i * 7, s * 0.6, 5, 5) }
+  for (let i = 0; i < t.level; i++) { ctx.fillStyle = t.fused ? '#fde047' : '#fde68a'; ctx.fillRect(-s * 0.7 + i * 6, s * 0.6, 4, 5) }
+  if (t.fused) { ctx.fillStyle = '#fde047'; ctx.font = `bold ${Math.round(s * 0.6)}px sans-serif`; ctx.textAlign = 'center'; ctx.fillText('★', 0, -s * 0.95) }
+  // veterancy chevrons (top)
+  if (t.vet) {
+    ctx.fillStyle = '#fde047'
+    for (let i = 0; i < t.vet; i++) {
+      const cx = (i - (t.vet - 1) / 2) * 6
+      ctx.beginPath(); ctx.moveTo(cx - 3, -s * 0.84); ctx.lineTo(cx, -s * 1.0); ctx.lineTo(cx + 3, -s * 0.84); ctx.closePath(); ctx.fill()
+    }
+  }
   const still = def.mode === 'support' || def.mode === 'income'
   if (!still) { ctx.rotate(angle); if (t.recoil) ctx.translate(-t.recoil * 6, 0) } // barrel kick
   towerHead(ctx, s, def.sprite, def.color, spin)
