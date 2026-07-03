@@ -83,8 +83,10 @@ export function getLevelConfig(n) {
       // Swarms ramp with BOTH the wave index and the level number: gentle at
       // first, brutal later. A couple of towers won't hold for long.
       const nScale = 1 + Math.min(1.7, (n - 1) * 0.028)
-      let count = Math.round((8 + i * 2.3) * nScale * (fast ? 1.4 : 1) / (tanky ? 2.6 : 1))
-      count = clamp(count, 5, 120)
+      // ~2x the horde. Spawn interval is unchanged, so waves get twice as big
+      // and twice as long without spiking per-second pressure.
+      let count = Math.round((16 + i * 4.6) * nScale * (fast ? 1.4 : 1) / (tanky ? 2.6 : 1))
+      count = clamp(count, 8, 240)
       const interval = clamp((0.92 - i * 0.036) * (fast ? 0.65 : 1), 0.26, 0.95)
       groups.push({ type, count, interval, delay: +(g * (0.8 + rand() * 2.4)).toFixed(2) })
     }
