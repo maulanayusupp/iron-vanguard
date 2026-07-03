@@ -321,7 +321,7 @@ export class Game {
 
     if (this.waveActive && !this.spawnQueue.length && !this.enemies.length) {
       this.waveActive = false; this.state.waveActive = false; this.state.wave += 1
-      this.state.money += 60 + this.state.wave * 14
+      this.state.money += 75 + this.state.wave * 16
       if (this.state.wave >= this.level.totalWaves) {
         const ratio = this.state.baseHp / this.state.maxBaseHp
         this.state.stars = ratio >= 0.9 ? 3 : ratio >= 0.5 ? 2 : 1

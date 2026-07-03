@@ -73,7 +73,7 @@ export function getLevelConfig(n) {
   // Real strategy, upgrades, damage-type matching and hero skills are mandatory.
   const hpMult = 1 + (n - 1) * 0.12
   const spdMult = 1 + Math.min(0.85, (n - 1) * 0.0045)
-  const rewardMult = 1 + (n - 1) * 0.02
+  const rewardMult = 1.2 + (n - 1) * 0.022 // a bit more gold per kill
 
   const pool = availableEnemies(n)
   // More waves per level → longer, more enjoyable runs.
@@ -123,7 +123,7 @@ export function getLevelConfig(n) {
     ])
   }
 
-  const startMoney = clamp(240 + Math.floor(n / 4) * 8, 240, 720)
+  const startMoney = clamp(260 + Math.floor(n / 4) * 9, 260, 780)
   const baseHp = 26 + Math.floor(n / 25) * 6
 
   return {
