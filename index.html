@@ -3,18 +3,65 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>Iron Vanguard</title>
-    <meta name="description" content="Iron Vanguard — a fast, strategic tower-defense game. Command turrets and elite heroes across 2000 levels." />
+
+    <!-- ==== Primary SEO ==== -->
+    <title>Iron Vanguard — Endless Tower Defense Game</title>
+    <meta name="description" content="Command 16 turrets and 18 unique heroes, unleash devastating skills, and hold the line against 35 monster types and giant bosses across 2000 levels. A free browser tower-defense war." />
+    <meta name="keywords" content="Iron Vanguard, tower defense, browser game, strategy game, turrets, heroes, waves, bosses, HTML5 game, free game, TD" />
+    <meta name="author" content="Iron Vanguard" />
+    <meta name="robots" content="index, follow" />
     <meta name="theme-color" content="#0b1220" />
 
+    <!--
+      IMPORTANT: replace this with your real deployed URL so link previews
+      (WhatsApp, Facebook, Twitter, iMessage) load the share image correctly.
+      Social crawlers require an ABSOLUTE https URL for og:image.
+    -->
+    <link rel="canonical" href="https://iron-vanguard.example.com/" />
+
+    <!-- ==== Icons / PWA ==== -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="mask-icon" href="/favicon.svg" color="#22d3ee" />
     <link rel="apple-touch-icon" href="/favicon.svg" />
     <link rel="manifest" href="/manifest.webmanifest" />
 
+    <!-- ==== Open Graph (WhatsApp / Facebook / iMessage / LinkedIn) ==== -->
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="Iron Vanguard" />
-    <meta property="og:description" content="Command turrets and elite heroes. Hold the line across 2000 levels." />
+    <meta property="og:site_name" content="Iron Vanguard" />
+    <meta property="og:title" content="Iron Vanguard — Endless Tower Defense" />
+    <meta property="og:description" content="Command turrets & elite heroes. Hold the line against endless monster waves and giant bosses across 2000 levels." />
+    <meta property="og:url" content="https://iron-vanguard.example.com/" />
+    <meta property="og:image" content="https://iron-vanguard.example.com/og-image.jpg" />
+    <meta property="og:image:secure_url" content="https://iron-vanguard.example.com/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Iron Vanguard — tower defense: shield emblem with 16 towers, 18 heroes, 2000 levels" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- ==== Twitter / X ==== -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Iron Vanguard — Endless Tower Defense" />
+    <meta name="twitter:description" content="Command turrets & elite heroes. Hold the line against endless monster waves and giant bosses across 2000 levels." />
+    <meta name="twitter:image" content="https://iron-vanguard.example.com/og-image.jpg" />
+    <meta name="twitter:image:alt" content="Iron Vanguard — tower defense game" />
+
+    <!-- ==== Structured data (Google) ==== -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "VideoGame",
+      "name": "Iron Vanguard",
+      "description": "Endless browser tower-defense: command 16 turrets and 18 unique heroes against 35 monster types and giant bosses across 2000 levels.",
+      "genre": ["Tower Defense", "Strategy"],
+      "gamePlatform": ["Web Browser"],
+      "applicationCategory": "Game",
+      "operatingSystem": "Any",
+      "image": "https://iron-vanguard.example.com/og-image.jpg",
+      "url": "https://iron-vanguard.example.com/",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+    }
+    </script>
   </head>
   <body>
     <div id="app"></div>
