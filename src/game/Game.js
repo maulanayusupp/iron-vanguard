@@ -28,8 +28,9 @@ export class Game {
 
   reset(level) {
     this.level = level
-    this.pathPx = level.map.path.map((p) => ({ x: p.x * TILE + TILE / 2, y: p.y * TILE + TILE / 2 }))
-    this.blocked = this._computeBlocked(level.map.path)
+    this.pathsPx = level.map.paths.map((pp) => pp.map((p) => ({ x: p.x * TILE + TILE / 2, y: p.y * TILE + TILE / 2 })))
+    this.blocked = this._computeBlocked(level.map.paths)
+    this.basePt = this.pathsPx[0][this.pathsPx[0].length - 1] // shared exit
 
     this.turrets = []
     this.enemies = []
@@ -106,16 +107,18 @@ export class Game {
 
   // ---- map ---------------------------------------------------------------
 
-  _computeBlocked(path) {
+  _computeBlocked(paths) {
     const set = new Set()
-    for (let i = 0; i < path.length - 1; i++) {
-      const a = path[i], b = path[i + 1]
-      const dx = Math.sign(b.x - a.x), dy = Math.sign(b.y - a.y)
-      let x = a.x, y = a.y
-      while (true) {
-        if (x >= 0 && x < COLS && y >= 0 && y < ROWS) set.add(`${x},${y}`)
-        if (x === b.x && y === b.y) break
-        x += dx; y += dy
+    for (const path of paths) {
+      for (let i = 0; i < path.length - 1; i++) {
+        const a = path[i], b = path[i + 1]
+        const dx = Math.sign(b.x - a.x), dy = Math.sign(b.y - a.y)
+        let x = a.x, y = a.y
+        while (true) {
+          if (x >= 0 && x < COLS && y >= 0 && y < ROWS) set.add(`${x},${y}`)
+          if (x === b.x && y === b.y) break
+          x += dx; y += dy
+        }
       }
     }
     return set
@@ -264,10 +267,12 @@ export class Game {
     const groups = this.level.waves[this.state.wave]
     if (!groups) return
     this.spawnQueue = []
-    for (const g of groups) {
+    const lanes = this.pathsPx.length
+    groups.forEach((g, gi) => {
       const delay = g.delay || 0
-      for (let i = 0; i < g.count; i++) this.spawnQueue.push({ type: g.type, time: delay + i * g.interval, champion: !!g.champion, waveBoss: !!g.waveBoss, tier: g.tier || 0 })
-    }
+      const pathIndex = (g.lane != null ? g.lane : gi) % lanes // spread groups across lanes
+      for (let i = 0; i < g.count; i++) this.spawnQueue.push({ type: g.type, time: delay + i * g.interval, champion: !!g.champion, waveBoss: !!g.waveBoss, tier: g.tier || 0, pathIndex })
+    })
     this.spawnQueue.sort((a, b) => a.time - b.time)
     this.waveTimer = 0; this.waveActive = true; this.state.waveActive = true
   }
@@ -310,11 +315,12 @@ export class Game {
       for (let k = 0; k < cnt && ps.length; k++) bossSkills.push(ps.splice(Math.floor(rand() * ps.length), 1)[0])
       skillCd = 3 + rand() * 2.5
     }
-    const p = opts.at || this.pathPx[0]
+    const pathIndex = opts.pathIndex || 0
+    const p = opts.at || this.pathsPx[pathIndex][0]
     this.enemies.push({
       type, name, class: def.class, sprite: def.sprite, color: def.color, accent: def.accent, radius, armor,
       abilities, boss: !!def.boss, champion, waveBoss, res: def.res || null,
-      x: p.x, y: p.y, seg: 1, dist: 0, angle: 0,
+      pathIndex, x: p.x, y: p.y, seg: opts.seg || 1, dist: 0, angle: 0,
       hp: Math.round(hp), maxHp: Math.round(hp), speed, reward: Math.round(reward), damage: def.damage,
       slowTimer: 0, slowFactor: 0, dotTimer: 0, dotDps: 0, dotType: 'fire', buffSpeed: 1, siegeTarget: null,
       artCd: abilities && abilities.artillery ? rand() * abilities.artillery.interval : 0,
@@ -341,7 +347,7 @@ export class Game {
     if (this.waveActive) {
       this.waveTimer += dt
       while (this.spawnQueue.length && this.spawnQueue[0].time <= this.waveTimer) {
-        const s = this.spawnQueue.shift(); this._spawn(s.type, { champion: s.champion, waveBoss: s.waveBoss, tier: s.tier })
+        const s = this.spawnQueue.shift(); this._spawn(s.type, { champion: s.champion, waveBoss: s.waveBoss, tier: s.tier, pathIndex: s.pathIndex })
       }
     }
 
@@ -370,7 +376,7 @@ export class Game {
     this._updateParticles(dt)
 
     if (this.beams.length) { for (const b of this.beams) b.life -= dt; this.beams = this.beams.filter((b) => b.life > 0) }
-    if (this.spawnExtra.length) { for (const s of this.spawnExtra) this._spawn(s.type, { at: s.at }); this.spawnExtra = [] }
+    if (this.spawnExtra.length) { for (const s of this.spawnExtra) this._spawn(s.type, { at: s.at, pathIndex: s.pathIndex, seg: s.seg }); this.spawnExtra = [] }
 
     this.enemies = this.enemies.filter((e) => !e.dead)
     this.projectiles = this.projectiles.filter((p) => !p.dead)
@@ -440,12 +446,13 @@ export class Game {
       if (e.summonCd <= 0) {
         const s = e.abilities.summon
         e.summonCd = s.interval
-        for (let i = 0; i < s.count; i++) this.spawnExtra.push({ type: s.into, at: { x: e.x + (i - s.count / 2) * 10, y: e.y } })
+        for (let i = 0; i < s.count; i++) this.spawnExtra.push({ type: s.into, at: { x: e.x + (i - s.count / 2) * 10, y: e.y }, pathIndex: e.pathIndex, seg: e.seg })
         this._shock(e.x, e.y, 40, e.accent); this._spark(e.x, e.y, e.accent, 6)
       }
     }
 
-    const target = this.pathPx[e.seg]
+    const path = this.pathsPx[e.pathIndex] || this.pathsPx[0]
+    const target = path[e.seg]
     if (!target) { e.reached = true; return }
     let enrage = 1
     if (e.abilities && e.abilities.enrage && e.hp / e.maxHp < e.abilities.enrage.below) enrage = e.abilities.enrage.speedMult
@@ -455,7 +462,7 @@ export class Game {
     const move = e.speed * enrage * e.buffSpeed * slow * leap * rageM * dt
     const dx = target.x - e.x, dy = target.y - e.y, d = Math.hypot(dx, dy)
     e.angle = Math.atan2(dy, dx)
-    if (d <= move) { e.x = target.x; e.y = target.y; e.dist += d; e.seg += 1; if (e.seg >= this.pathPx.length) e.reached = true }
+    if (d <= move) { e.x = target.x; e.y = target.y; e.dist += d; e.seg += 1; if (e.seg >= path.length) e.reached = true }
     else { e.x += (dx / d) * move; e.y += (dy / d) * move; e.dist += move }
   }
 
@@ -834,7 +841,7 @@ export class Game {
       }
       if (e.abilities && e.abilities.split) {
         const { into, count } = e.abilities.split
-        for (let i = 0; i < count; i++) this.spawnExtra.push({ type: into, at: { x: e.x + (i - count / 2) * 8, y: e.y } })
+        for (let i = 0; i < count; i++) this.spawnExtra.push({ type: into, at: { x: e.x + (i - count / 2) * 8, y: e.y }, pathIndex: e.pathIndex, seg: e.seg })
       }
     }
   }
@@ -865,7 +872,7 @@ export class Game {
       }
       case 'summon': { // portal that spawns a burst of imps
         this._shock(e.x, e.y, 70, '#a78bfa'); this._spark(e.x, e.y, '#a78bfa', 12); this._text(e.x, e.y - e.radius, 'SUMMON!', '#a78bfa')
-        for (let i = 0; i < 4; i++) this.spawnExtra.push({ type: 'imp', at: { x: e.x + (i - 2) * 12, y: e.y } })
+        for (let i = 0; i < 4; i++) this.spawnExtra.push({ type: 'imp', at: { x: e.x + (i - 2) * 12, y: e.y }, pathIndex: e.pathIndex, seg: e.seg })
         break
       }
       case 'rage': // temporary speed frenzy
@@ -917,7 +924,7 @@ export class Game {
         break
       case 'heal_base':
         this.state.baseHp = Math.min(this.state.maxBaseHp, this.state.baseHp + ef.amount)
-        this._text(this.pathPx[this.pathPx.length - 1].x, this.pathPx[this.pathPx.length - 1].y - 20, '+' + ef.amount + ' HP', '#22c55e'); break
+        this._text(this.basePt.x, this.basePt.y - 20, '+' + ef.amount + ' HP', '#22c55e'); break
       case 'kill_strong': {
         const best = this._leaders(1)[0]
         if (best) {
@@ -1038,15 +1045,20 @@ export class Game {
 
     for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) { if (this.blocked.has(`${c},${r}`)) continue; ctx.fillStyle = th.grid; ctx.fillRect(c * TILE + 1, r * TILE + 1, TILE - 2, TILE - 2) }
 
-    const trace = () => { ctx.beginPath(); this.pathPx.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y))) }
     ctx.lineJoin = 'round'; ctx.lineCap = 'round'
-    ctx.strokeStyle = th.road; ctx.lineWidth = TILE * 0.72; trace(); ctx.stroke()
-    ctx.setLineDash([12, 16]); ctx.strokeStyle = th.accent; ctx.globalAlpha = 0.5; ctx.lineWidth = 4; trace(); ctx.stroke(); ctx.globalAlpha = 1; ctx.setLineDash([])
+    const trace = (pp) => { ctx.beginPath(); pp.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y))) }
+    // road bed (all lanes)
+    ctx.strokeStyle = th.road; ctx.lineWidth = TILE * 0.72
+    for (const pp of this.pathsPx) { trace(pp); ctx.stroke() }
+    // centre dashes (all lanes)
+    ctx.setLineDash([12, 16]); ctx.strokeStyle = th.accent; ctx.globalAlpha = 0.5; ctx.lineWidth = 4
+    for (const pp of this.pathsPx) { trace(pp); ctx.stroke() }
+    ctx.globalAlpha = 1; ctx.setLineDash([])
 
-    const end = this.pathPx[this.pathPx.length - 1]
-    ctx.fillStyle = th.accent; ctx.beginPath(); ctx.arc(end.x, end.y, 22, 0, TAU); ctx.fill()
-    ctx.fillStyle = '#0b1120'; ctx.beginPath(); ctx.arc(end.x, end.y, 12, 0, TAU); ctx.fill()
-    ctx.fillStyle = th.accent; ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('★', end.x, end.y + 5)
+    const end = this.basePt
+    ctx.fillStyle = th.accent; ctx.beginPath(); ctx.arc(end.x, end.y, 24, 0, TAU); ctx.fill()
+    ctx.fillStyle = '#0b1120'; ctx.beginPath(); ctx.arc(end.x, end.y, 13, 0, TAU); ctx.fill()
+    ctx.fillStyle = th.accent; ctx.font = 'bold 15px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('★', end.x, end.y + 5)
 
     this._renderPreview(ctx)
     this._renderSelectedRing(ctx)

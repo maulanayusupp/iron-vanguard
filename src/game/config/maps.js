@@ -10,64 +10,45 @@ export const ROWS = 9
 export const WIDTH = COLS * TILE // 1024
 export const HEIGHT = ROWS * TILE // 576
 
+// ---------------------------------------------------------------------------
+// Multi-lane maps. Each map has 2–5 incoming lanes so your towers must cover
+// several fronts at once. Lanes are generated (axis-aligned, converging to one
+// shared base) so it's fully DYNAMIC & CONFIGURABLE — just change `lanes`.
+// ---------------------------------------------------------------------------
+
+// Evenly spread `count` integer tracks between lo..hi.
+function spread(count, lo, hi) {
+  if (count <= 1) return [Math.round((lo + hi) / 2)]
+  const out = []
+  for (let i = 0; i < count; i++) out.push(Math.round(lo + (i * (hi - lo)) / (count - 1)))
+  return out
+}
+
+// Generate `count` lanes. axis 'h' = enter from the left → base at right-middle;
+// axis 'v' = enter from the top → base at bottom-middle. Lanes merge near base.
+export function generateLanes(count, axis = 'h') {
+  const paths = []
+  if (axis === 'v') {
+    const baseX = 8, joinY = 6, baseY = 9
+    for (const c of spread(count, 1, 14)) paths.push([{ x: c, y: -1 }, { x: c, y: joinY }, { x: baseX, y: joinY }, { x: baseX, y: baseY }])
+  } else {
+    const baseY = 4, joinX = 13, baseX = 16
+    for (const r of spread(count, 1, 7)) paths.push([{ x: -1, y: r }, { x: joinX, y: r }, { x: joinX, y: baseY }, { x: baseX, y: baseY }])
+  }
+  return paths
+}
+
+// name, lanes (default 2, up to 5), axis. Edit freely — everything is generated.
 export const MAPS = [
-  {
-    name: 'Frontline',
-    path: [
-      { x: -1, y: 1 }, { x: 11, y: 1 }, { x: 11, y: 4 },
-      { x: 2, y: 4 }, { x: 2, y: 7 }, { x: 14, y: 7 }, { x: 16, y: 7 },
-    ],
-  },
-  {
-    name: 'Serpent',
-    path: [
-      { x: 2, y: -1 }, { x: 2, y: 3 }, { x: 13, y: 3 },
-      { x: 13, y: 6 }, { x: 4, y: 6 }, { x: 4, y: 9 },
-    ],
-  },
-  {
-    name: 'Crossroads',
-    path: [
-      { x: -1, y: 4 }, { x: 6, y: 4 }, { x: 6, y: 1 },
-      { x: 10, y: 1 }, { x: 10, y: 7 }, { x: 16, y: 7 },
-    ],
-  },
-  {
-    name: 'Zigzag',
-    path: [
-      { x: -1, y: 7 }, { x: 3, y: 7 }, { x: 3, y: 2 }, { x: 7, y: 2 },
-      { x: 7, y: 7 }, { x: 11, y: 7 }, { x: 11, y: 2 }, { x: 16, y: 2 },
-    ],
-  },
-  {
-    name: 'U-Turn',
-    path: [
-      { x: -1, y: 1 }, { x: 13, y: 1 }, { x: 13, y: 7 },
-      { x: 2, y: 7 }, { x: 2, y: 4 }, { x: 16, y: 4 },
-    ],
-  },
-  {
-    name: 'Labyrinth',
-    path: [
-      { x: 8, y: -1 }, { x: 8, y: 1 }, { x: 13, y: 1 }, { x: 13, y: 7 },
-      { x: 2, y: 7 }, { x: 2, y: 3 }, { x: 9, y: 3 }, { x: 9, y: 5 }, { x: 16, y: 5 },
-    ],
-  },
-  {
-    name: 'Double Back',
-    path: [
-      { x: -1, y: 3 }, { x: 12, y: 3 }, { x: 12, y: 6 },
-      { x: 4, y: 6 }, { x: 4, y: 8 }, { x: 16, y: 8 },
-    ],
-  },
-  {
-    name: 'Long March',
-    path: [
-      { x: -1, y: 4 }, { x: 3, y: 4 }, { x: 3, y: 1 }, { x: 8, y: 1 },
-      { x: 8, y: 7 }, { x: 12, y: 7 }, { x: 12, y: 4 }, { x: 16, y: 4 },
-    ],
-  },
-]
+  { name: 'Twin Approach', lanes: 2, axis: 'h' },
+  { name: 'Serpent Split', lanes: 2, axis: 'v' },
+  { name: 'Trident', lanes: 3, axis: 'h' },
+  { name: 'Gauntlet', lanes: 2, axis: 'h' },
+  { name: 'Three Rivers', lanes: 3, axis: 'v' },
+  { name: 'Crossfire', lanes: 4, axis: 'h' },
+  { name: 'Delta', lanes: 3, axis: 'h' },
+  { name: 'Five Fronts', lanes: 5, axis: 'v' },
+].map((m) => ({ ...m, paths: generateLanes(m.lanes, m.axis) }))
 
 // Biome themes cycle by "zone" (every 25 levels). Each gives the map a look.
 export const THEMES = [
