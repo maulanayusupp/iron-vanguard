@@ -516,7 +516,13 @@ export function drawEnemy(ctx, e, spin) {
   ctx.beginPath(); ctx.ellipse(0, 0, e.radius * 0.95, e.radius * 0.42, 0, 0, TAU); ctx.fill()
   ctx.restore()
   if (flying) ctx.translate(0, -e.radius * 0.6 + Math.sin(spin * 3) * e.radius * 0.12)
-  if (e.champion) {
+  if (e.waveBoss) {
+    const pulse = 0.5 + 0.35 * Math.sin(spin * 5)
+    ctx.save(); ctx.globalAlpha = pulse; ctx.strokeStyle = '#f43f5e'; ctx.lineWidth = 4
+    ctx.beginPath(); ctx.arc(0, 0, e.radius * 1.32, 0, TAU); ctx.stroke()
+    ctx.globalAlpha = pulse * 0.5; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, e.radius * 1.6, 0, TAU); ctx.stroke()
+    ctx.restore()
+  } else if (e.champion) {
     const pulse = 0.5 + 0.3 * Math.sin(spin * 5)
     ctx.save(); ctx.globalAlpha = pulse; ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 3
     ctx.beginPath(); ctx.arc(0, 0, e.radius * 1.35, 0, TAU); ctx.stroke(); ctx.restore()
@@ -525,7 +531,10 @@ export function drawEnemy(ctx, e, spin) {
   ctx.rotate(e.angle || 0)
   ;(ENEMY_ROUTINES[e.sprite] || ENEMY_ROUTINES.soldier)(ctx, e.radius, e.color, e.accent, anim)
   ctx.restore()
-  if (e.champion) {
+  if (e.waveBoss) {
+    ctx.fillStyle = '#f43f5e'; ctx.font = `bold ${Math.round(e.radius * 0.9)}px sans-serif`; ctx.textAlign = 'center'
+    ctx.fillText('☠', 0, -e.radius * 1.5)
+  } else if (e.champion) {
     ctx.fillStyle = '#fbbf24'; ctx.font = `bold ${Math.round(e.radius)}px sans-serif`; ctx.textAlign = 'center'
     ctx.fillText('♛', 0, -e.radius * 1.5)
   }

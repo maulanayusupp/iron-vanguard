@@ -214,7 +214,7 @@ export class Game {
     this.spawnQueue = []
     for (const g of groups) {
       const delay = g.delay || 0
-      for (let i = 0; i < g.count; i++) this.spawnQueue.push({ type: g.type, time: delay + i * g.interval, champion: !!g.champion })
+      for (let i = 0; i < g.count; i++) this.spawnQueue.push({ type: g.type, time: delay + i * g.interval, champion: !!g.champion, waveBoss: !!g.waveBoss, tier: g.tier || 0 })
     }
     this.spawnQueue.sort((a, b) => a.time - b.time)
     this.waveTimer = 0; this.waveActive = true; this.state.waveActive = true
@@ -226,6 +226,7 @@ export class Game {
     let speed = def.speed * this.level.spdMult, armor = def.armor || 0
     let abilities = def.abilities ? { ...def.abilities } : null
     const champion = !!opts.champion
+    const waveBoss = !!opts.waveBoss
     let name = def.name
     if (champion) {
       hp *= 4.5; radius *= 1.4; reward *= 5; speed *= 0.92; name = 'Elite ' + def.name
@@ -236,10 +237,21 @@ export class Game {
       else if (mod === 'regen') abilities.regen = (abilities.regen || 0) + 40
       else { hp *= 1.4; radius *= 1.1 }
     }
+    if (waveBoss) {
+      const tier = opts.tier || 0
+      hp *= 2.4 + tier * 0.5 // stronger every wave
+      radius *= 1.55         // a giant
+      reward *= 6; speed *= 0.9
+      armor = Math.max(armor, 0.2)
+      name = 'Boss ' + def.name
+      abilities = abilities ? { ...abilities } : {}
+      // always able to smash your turrets
+      if (!abilities.siege) abilities.siege = { range: 1.7 * 64, dps: 36 + tier * 4 }
+    }
     const p = opts.at || this.pathPx[0]
     this.enemies.push({
       type, name, class: def.class, sprite: def.sprite, color: def.color, accent: def.accent, radius, armor,
-      abilities, boss: !!def.boss, champion, res: def.res || null,
+      abilities, boss: !!def.boss, champion, waveBoss, res: def.res || null,
       x: p.x, y: p.y, seg: 1, dist: 0, angle: 0,
       hp: Math.round(hp), maxHp: Math.round(hp), speed, reward: Math.round(reward), damage: def.damage,
       slowTimer: 0, slowFactor: 0, dotTimer: 0, dotDps: 0, dotType: 'fire', buffSpeed: 1, siegeTarget: null,
@@ -260,7 +272,7 @@ export class Game {
     if (this.waveActive) {
       this.waveTimer += dt
       while (this.spawnQueue.length && this.spawnQueue[0].time <= this.waveTimer) {
-        const s = this.spawnQueue.shift(); this._spawn(s.type, { champion: s.champion })
+        const s = this.spawnQueue.shift(); this._spawn(s.type, { champion: s.champion, waveBoss: s.waveBoss, tier: s.tier })
       }
     }
 
@@ -548,6 +560,7 @@ export class Game {
       e.dead = true; this.state.money += e.reward; this.state.kills += 1
       this._debris(e.x, e.y, e.color)
       if (e.champion) { this._explosion(e.x, e.y, e.radius * 1.6, '#fbbf24'); this._text(e.x, e.y, '+$' + e.reward, '#fbbf24') }
+      if (e.waveBoss) { this._explosion(e.x, e.y, e.radius * 2.2, '#f43f5e'); audioService.explosion(); this._text(e.x, e.y, 'BOSS DOWN', '#f43f5e', true) }
       if (e.boss) { this._explosion(e.x, e.y, e.radius * 2, e.color); audioService.explosion() }
       if (e.abilities && e.abilities.deathBomb) {
         const { radius, dmg } = e.abilities.deathBomb
@@ -778,7 +791,7 @@ export class Game {
     const yTop = e.y - e.radius - (e.class === 'air' ? e.radius * 0.6 : 0) - 10
     const w = Math.max(e.radius * 2, 20), hpr = Math.max(0, e.hp / e.maxHp)
     ctx.fillStyle = '#0b1120'; ctx.fillRect(e.x - w / 2, yTop, w, 5)
-    ctx.fillStyle = e.champion ? '#fbbf24' : e.boss ? '#f59e0b' : hpr > 0.5 ? '#22c55e' : hpr > 0.25 ? '#f59e0b' : '#ef4444'
+    ctx.fillStyle = e.waveBoss ? '#f43f5e' : e.champion ? '#fbbf24' : e.boss ? '#f59e0b' : hpr > 0.5 ? '#22c55e' : hpr > 0.25 ? '#f59e0b' : '#ef4444'
     ctx.fillRect(e.x - w / 2, yTop, w * hpr, 5)
     if (e.slowTimer > 0 && e.slowFactor >= 1) { // frozen shell
       ctx.globalAlpha = 0.4; ctx.fillStyle = '#bfdbfe'; ctx.beginPath(); ctx.arc(e.x, e.y, e.radius + 3, 0, TAU); ctx.fill(); ctx.globalAlpha = 1

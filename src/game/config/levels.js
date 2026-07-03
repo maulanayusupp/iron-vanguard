@@ -51,6 +51,13 @@ function availableEnemies(n) {
   return keys
 }
 
+// The giant mini-boss that leads EVERY wave — bigger & tougher as levels rise.
+function pickWaveBoss(n, rand) {
+  const pool = n < 6 ? ['heavy'] : n < 12 ? ['brute'] : n < 25 ? ['juggernaut', 'golem']
+    : n < 45 ? ['behemoth', 'colossus', 'mech'] : ['colossus', 'mech', 'commander']
+  return pool[Math.floor(rand() * pool.length)]
+}
+
 export function getLevelConfig(n) {
   n = clamp(Math.round(n), 1, MAX_LEVEL)
   const rand = makeRng(Math.imul(n, 2654435761) ^ 0x9e3779b9)
@@ -62,8 +69,8 @@ export function getLevelConfig(n) {
   const chapter = Math.floor((n - 1) / CHAPTER_SIZE) + 1
 
   // Tougher curve — a couple of towers should NOT clear a wave.
-  const hpMult = 1 + (n - 1) * 0.055
-  const spdMult = 1 + Math.min(0.75, (n - 1) * 0.004)
+  const hpMult = 1 + (n - 1) * 0.06
+  const spdMult = 1 + Math.min(0.78, (n - 1) * 0.0042)
   const rewardMult = 1 + (n - 1) * 0.015
 
   const pool = availableEnemies(n)
@@ -83,18 +90,21 @@ export function getLevelConfig(n) {
       // Swarms ramp with BOTH the wave index and the level number: gentle at
       // first, brutal later. A couple of towers won't hold for long.
       const nScale = 1 + Math.min(1.7, (n - 1) * 0.028)
-      // ~2x the horde. Spawn interval is unchanged, so waves get twice as big
-      // and twice as long without spiking per-second pressure.
-      let count = Math.round((16 + i * 4.6) * nScale * (fast ? 1.4 : 1) / (tanky ? 2.6 : 1))
-      count = clamp(count, 8, 240)
-      const interval = clamp((0.92 - i * 0.036) * (fast ? 0.65 : 1), 0.26, 0.95)
+      // Ramps hard WITHIN the level: gentle first wave, overwhelming finale.
+      // Faster stream in later waves means more enemies on screen at once.
+      let count = Math.round((8 + i * 4.6) * nScale * (fast ? 1.4 : 1) / (tanky ? 2.6 : 1))
+      count = clamp(count, 7, 220)
+      const interval = clamp((0.8 - i * 0.035) * (fast ? 0.62 : 1), 0.2, 0.8)
       groups.push({ type, count, interval, delay: +(g * (0.8 + rand() * 2.4)).toFixed(2) })
     }
     // Random champion(s) (enemy heroes): elite reinforcements.
-    if (n >= 8 && rand() < 0.5) {
+    if (n >= 8 && rand() < 0.35) {
       const champs = n > 40 && rand() < 0.4 ? 2 : 1
       groups.push({ type: pick(pool), count: champs, interval: 2, delay: +(2 + rand() * 4).toFixed(2), champion: true })
     }
+    // Every wave is led by a giant WAVE BOSS that grows stronger each wave and
+    // rips your turrets apart.
+    groups.push({ type: pickWaveBoss(n, rand), count: 1, interval: 1, delay: +(1.5 + i * 0.4 + rand() * 2).toFixed(2), waveBoss: true, tier: i })
     waves.push(groups)
   }
 
