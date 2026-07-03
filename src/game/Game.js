@@ -1,5 +1,5 @@
 import { TILE, COLS, ROWS, WIDTH, HEIGHT } from './config/maps.js'
-import { TOWERS, MAX_LEVEL as TOWER_MAX, damageAtLevel, rangeAtLevel, fireRateAtLevel } from './config/towers.js'
+import { TOWERS, MAX_LEVEL as TOWER_MAX, TOWER_BASE_HP, TOWER_HP_PER_LEVEL, damageAtLevel, rangeAtLevel, fireRateAtLevel } from './config/towers.js'
 import { ENEMIES } from './config/enemies.js'
 import { HEROES, HERO_SLOTS, RARITY } from './config/heroes.js'
 import { DAMAGE_TYPES } from './config/damage.js'
@@ -9,8 +9,6 @@ import { audioService } from '../services/audio.service.js'
 
 const TAU = Math.PI * 2
 const rand = () => Math.random()
-const TOWER_BASE_HP = 120
-const TOWER_HP_PER_LEVEL = 60
 
 // Visual style of a projectile, by damage type.
 const PROJ_KIND = { kinetic: 'bullet', explosive: 'rocket', fire: 'fireball', frost: 'shard', toxic: 'glob', energy: 'bolt' }
@@ -168,17 +166,24 @@ export class Game {
     if (e.kind === 'tower') {
       const def = TOWERS[e.key]
       const up = def.cost * e.level
+      const hasAtk = def.damage != null && def.fireRate != null
+      const dps = hasAtk ? Math.round(damageAtLevel(def.damage, e.level) * fireRateAtLevel(def.fireRate, e.level) * (def.multishot || 1)) : 0
       this.state.selectedInfo = {
         kind: 'tower', name: def.name, color: def.color, level: e.level, maxLevel: TOWER_MAX,
-        damage: Math.round(damageAtLevel(def.damage, e.level)), range: Math.round(rangeAtLevel(def.range, e.level)),
-        dtype: DAMAGE_TYPES[def.dtype].label, dtypeColor: DAMAGE_TYPES[def.dtype].color, strongVs: def.strongVs,
-        canUpgrade: e.level < TOWER_MAX, upgradeCost: up, canAfford: this.state.money >= up, sellValue: Math.floor(e.invested * 0.6),
+        dps, hp: Math.round(e.hp), maxHp: e.maxHp,
+        range: def.range ? Math.round(rangeAtLevel(def.range, e.level)) : 0,
+        dtype: def.dtype ? DAMAGE_TYPES[def.dtype].label : '—', dtypeColor: def.dtype ? DAMAGE_TYPES[def.dtype].color : '#94a3b8',
+        strongVs: def.strongVs,
+        note: def.mode === 'income' ? `Mints +$${def.income} every ${def.incomeInterval}s`
+          : def.mode === 'support' ? `Aura: +${Math.round((def.buff.damageMult - 1) * 100)}% dmg, +${Math.round((def.buff.fireMult - 1) * 100)}% rate` : '',
+        canUpgrade: e.level < TOWER_MAX && hasAtk, upgradeCost: up, canAfford: this.state.money >= up, sellValue: Math.floor(e.invested * 0.6),
       }
     } else {
       const def = HEROES[e.key]
       this.state.selectedInfo = {
         kind: 'hero', name: def.name, color: def.color, rarity: RARITY[def.rarity].label, rarityColor: RARITY[def.rarity].color,
         dtype: DAMAGE_TYPES[def.attack.dtype].label, dtypeColor: DAMAGE_TYPES[def.attack.dtype].color,
+        dps: Math.round(def.attack.damage * def.attack.fireRate),
         skillName: def.skill.name, desc: def.skill.desc,
       }
     }
@@ -418,13 +423,21 @@ export class Game {
         if (p.rangeMult) range *= p.rangeMult
       }
     }
+    // Command Obelisk support-tower auras
+    for (const s of this.turrets) {
+      const sd = TOWERS[s.key]
+      if (sd.mode === 'support' && sd.buff && s !== t && Math.hypot(s.x - t.x, s.y - t.y) <= rangeAtLevel(sd.range, s.level)) {
+        dmg *= sd.buff.damageMult || 1; fire *= sd.buff.fireMult || 1
+      }
+    }
     for (const b of this.buffs) { dmg *= b.damageMult || 1; fire *= b.fireMult || 1 }
-    const damage = damageAtLevel(def.damage, t.level) * dmg
+    const damage = damageAtLevel(def.damage || 0, t.level) * dmg
     return {
-      mode: def.mode, dtype: def.dtype, range: rangeAtLevel(def.range, t.level) * range, minRange: def.minRange || 0,
-      damage, fireRate: fireRateAtLevel(def.fireRate, t.level) * fire, projSpeed: def.projSpeed,
+      mode: def.mode, dtype: def.dtype, range: rangeAtLevel(def.range || 0, t.level) * range, minRange: def.minRange || 0,
+      damage, fireRate: fireRateAtLevel(def.fireRate || 1, t.level) * fire, projSpeed: def.projSpeed,
       splash: def.splash || 0, slow: def.slow || null, dot: def.dot || null, chain: def.chain || null,
       ramp: def.ramp || 0, groundOnly: !!def.groundOnly, color: def.color, pitch: this._pitch(damage),
+      pierce: !!def.pierce, pierceW: def.pierceW || 20, multishot: def.multishot || 0,
     }
   }
 
@@ -453,13 +466,66 @@ export class Game {
 
   _updateTower(t, dt) {
     if (t.recoil > 0) t.recoil = Math.max(0, t.recoil - dt * 7)
+    const def = TOWERS[t.key]
     t.cooldown -= dt
+
+    if (def.mode === 'support') return // passive aura only (see _towerStats)
+    if (def.mode === 'income') {
+      if (t.cooldown <= 0) { t.cooldown = def.incomeInterval; this.state.money += def.income; this._text(t.x, t.y - 16, '+$' + def.income, '#facc15') }
+      return
+    }
+
     const stats = this._towerStats(t)
+    if (def.mode === 'pulse') {
+      if (t.cooldown <= 0) { t.cooldown = 1 / stats.fireRate; this._pulse(t, stats) }
+      return
+    }
+
     const target = this._acquire(t, stats)
     t.target = target
     if (!target) { t.lockTarget = null; t.lockTime = 0; return }
     t.angle = Math.atan2(target.y - t.y, target.x - t.x)
     if (t.cooldown <= 0) { t.cooldown = 1 / stats.fireRate; this._fire(t, stats, target) }
+  }
+
+  _pulse(t, stats) {
+    this.particles.push({ type: 'shock', x: t.x, y: t.y, r: stats.range, color: stats.color, life: 0.35, max: 0.35 })
+    audioService.shoot(stats.pitch)
+    for (const e of this.enemies) {
+      if (e.dead) continue
+      if (Math.hypot(e.x - t.x, e.y - t.y) <= stats.range) {
+        this._damage(e, stats.damage, stats.dtype)
+        if (stats.slow) { e.slowTimer = stats.slow.dur; e.slowFactor = stats.slow.factor }
+        this._spark(e.x, e.y, stats.color, 2)
+      }
+    }
+  }
+
+  _acquireMany(unit, stats, n) {
+    const list = []
+    for (const e of this.enemies) {
+      if (e.dead) continue
+      if (stats.groundOnly && e.class === 'air') continue
+      const d = Math.hypot(e.x - unit.x, e.y - unit.y)
+      if (d > stats.range || (stats.minRange && d < stats.minRange)) continue
+      list.push(e)
+    }
+    list.sort((a, b) => b.dist - a.dist)
+    return list.slice(0, n)
+  }
+
+  _pierce(unit, stats, target, bx, by) {
+    const ang = Math.atan2(target.y - by, target.x - bx)
+    const dx = Math.cos(ang), dy = Math.sin(ang)
+    for (const e of this.enemies) {
+      if (e.dead) continue
+      if (stats.groundOnly && e.class === 'air') continue
+      const rx = e.x - bx, ry = e.y - by
+      const proj = rx * dx + ry * dy
+      if (proj < 0 || proj > stats.range) continue
+      if (Math.abs(rx * dy - ry * dx) <= stats.pierceW + e.radius) { this._damage(e, stats.damage, stats.dtype); this._spark(e.x, e.y, stats.color, 4) }
+    }
+    this.beams.push({ segs: [[bx, by, bx + dx * stats.range, by + dy * stats.range]], color: stats.color, life: 0.1, width: 4, bolt: BOLT_TYPES.has(stats.dtype) })
   }
 
   _updateHero(h, dt) {
@@ -480,11 +546,17 @@ export class Game {
     this._muzzle(bx, by, unit.angle, stats.color)
     audioService.shoot(stats.pitch)
     if (stats.mode === 'projectile') {
-      this.projectiles.push({
-        x: bx, y: by, px: bx, py: by, angle: unit.angle, kind: PROJ_KIND[stats.dtype] || 'bullet',
-        target, speed: stats.projSpeed, damage: stats.damage, dtype: stats.dtype,
-        splash: stats.splash, slow: stats.slow, dot: stats.dot, color: stats.color, trail: [], dead: false,
-      })
+      const targets = stats.multishot ? this._acquireMany(unit, stats, stats.multishot) : [target]
+      for (const tg of targets) {
+        if (!tg) continue
+        this.projectiles.push({
+          x: bx, y: by, px: bx, py: by, angle: Math.atan2(tg.y - by, tg.x - bx), kind: PROJ_KIND[stats.dtype] || 'bullet',
+          target: tg, speed: stats.projSpeed, damage: stats.damage, dtype: stats.dtype,
+          splash: stats.splash, slow: stats.slow, dot: stats.dot, color: stats.color, trail: [], dead: false,
+        })
+      }
+    } else if (stats.pierce) {
+      this._pierce(unit, stats, target, bx, by)
     } else {
       this._hitscan(unit, stats, target, bx, by)
     }

@@ -15,6 +15,7 @@ import { TILE } from './maps.js'
 export const HERO_SLOTS = 3
 
 export const RARITY = {
+  ultimate: { label: 'Ultimate', color: '#fde047', order: -1 },
   normal: { label: 'Normal', color: '#94a3b8', order: 0 },
   epic: { label: 'Epic', color: '#a855f7', order: 1 },
   legend: { label: 'Legend', color: '#f59e0b', order: 2 },
@@ -22,6 +23,14 @@ export const RARITY = {
 }
 
 export const HEROES = {
+  // ---- Ultimate (boss-sized commander) ----
+  overlord: {
+    name: 'Overlord', rarity: 'ultimate', sprite: 'hero_mech', color: '#fbbf24', size: 1.6,
+    attack: { mode: 'projectile', dtype: 'explosive', range: 3.6 * TILE, damage: 120, fireRate: 1.4, projSpeed: 470, splash: 72 },
+    passive: { radius: 0, damageMult: 1.2, fireMult: 1.1 }, // global aura
+    skill: { name: 'Cataclysm', cooldown: 50, desc: '900 damage to ALL enemies + freeze 2.5s.', effect: { type: 'orbital', amount: 900, dur: 2.5 } },
+  },
+
   // ---- Normal ----
   rifleman: {
     name: 'Rifleman', rarity: 'normal', sprite: 'hero_rifle', color: '#84cc16',

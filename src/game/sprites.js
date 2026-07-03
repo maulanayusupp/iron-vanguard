@@ -633,6 +633,34 @@ function towerHead(ctx, s, sprite, color, spin) {
       ctx.fillStyle = '#111827'; rr(ctx, s * 0.2, -s * 0.14, s * 1.2, s * 0.28, s * 0.06); ctx.fill()
       ctx.fillStyle = '#fca5a5'; ctx.beginPath(); ctx.arc(s * 1.35, 0, s * 0.14, 0, TAU); ctx.fill()
       break
+    case 'railgun':
+      ctx.beginPath(); ctx.arc(0, 0, s * 0.46, 0, TAU); ctx.fill()
+      ctx.fillStyle = '#0f172a'; ctx.fillRect(s * 0.2, -s * 0.1, s * 1.95, s * 0.2)
+      ctx.fillStyle = color; ctx.fillRect(s * 0.55, -s * 0.18, s * 0.22, s * 0.36); ctx.fillRect(s * 0.95, -s * 0.18, s * 0.22, s * 0.36)
+      break
+    case 'plasma':
+      ctx.beginPath(); ctx.arc(0, 0, s * 0.5, 0, TAU); ctx.fill()
+      ctx.fillStyle = '#111827'; rr(ctx, s * 0.2, -s * 0.18, s * 1.0, s * 0.36, s * 0.08); ctx.fill()
+      { const pg = ctx.createRadialGradient(s * 1.15, 0, 1, s * 1.15, 0, s * 0.3); pg.addColorStop(0, '#fff'); pg.addColorStop(1, color); ctx.fillStyle = pg; ctx.beginPath(); ctx.arc(s * 1.15, 0, s * 0.24, 0, TAU); ctx.fill() }
+      break
+    case 'glacier':
+      for (let i = 0; i < 6; i++) { ctx.save(); ctx.rotate((i / 6) * TAU + spin); ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(0, -s * 0.22); ctx.lineTo(s * 0.78, 0); ctx.lineTo(0, s * 0.22); ctx.closePath(); ctx.fill(); ctx.restore() }
+      ctx.fillStyle = '#e0f2fe'; ctx.beginPath(); ctx.arc(0, 0, s * 0.36, 0, TAU); ctx.fill()
+      break
+    case 'sentry':
+      ctx.beginPath(); ctx.arc(0, 0, s * 0.5, 0, TAU); ctx.fill()
+      ctx.fillStyle = '#0f172a'; for (const oy of [-0.28, 0, 0.28]) ctx.fillRect(s * 0.2, oy * s - s * 0.055, s * 1.1, s * 0.11)
+      break
+    case 'obelisk': {
+      ctx.fillStyle = shade(color, -22); ctx.beginPath(); ctx.moveTo(0, -s * 0.95); ctx.lineTo(s * 0.5, s * 0.45); ctx.lineTo(-s * 0.5, s * 0.45); ctx.closePath(); ctx.fill()
+      const glow = 0.5 + 0.5 * Math.sin(spin * 6); ctx.globalAlpha = glow; ctx.fillStyle = color; ctx.beginPath(); ctx.arc(0, -s * 0.45, s * 0.3, 0, TAU); ctx.fill(); ctx.globalAlpha = 1
+      break
+    }
+    case 'bank':
+      ctx.fillStyle = shade(color, -18); ctx.beginPath(); ctx.arc(0, 0, s * 0.64, 0, TAU); ctx.fill()
+      ctx.fillStyle = color; ctx.beginPath(); ctx.arc(0, 0, s * 0.52, 0, TAU); ctx.fill()
+      ctx.fillStyle = '#7c5e10'; ctx.font = `bold ${Math.round(s * 0.85)}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('$', 0, s * 0.02); ctx.textBaseline = 'alphabetic'
+      break
     default:
       ctx.beginPath(); ctx.arc(0, 0, s * 0.5, 0, TAU); ctx.fill()
       ctx.fillStyle = '#0f172a'; ctx.fillRect(s * 0.2, -s * 0.12, s * 1.1, s * 0.24)
@@ -645,8 +673,8 @@ export function drawTower(ctx, t, def, angle, spin) {
   ctx.translate(t.x, t.y)
   towerBase(ctx, s, def.color)
   for (let i = 0; i < t.level; i++) { ctx.fillStyle = '#fde68a'; ctx.fillRect(-s * 0.7 + i * 7, s * 0.6, 5, 5) }
-  ctx.rotate(angle)
-  if (t.recoil) ctx.translate(-t.recoil * 6, 0) // barrel kick
+  const still = def.mode === 'support' || def.mode === 'income'
+  if (!still) { ctx.rotate(angle); if (t.recoil) ctx.translate(-t.recoil * 6, 0) } // barrel kick
   towerHead(ctx, s, def.sprite, def.color, spin)
   ctx.restore()
 }
@@ -666,7 +694,7 @@ function mage(ctx, r, color) {
 }
 
 export function drawHero(ctx, h, def, rarityColor, spin) {
-  const r = 20
+  const r = 20 * (def.size || 1)
   const angle = h.angle || 0
   ctx.save()
   ctx.translate(h.x, h.y)

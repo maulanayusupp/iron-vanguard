@@ -9,6 +9,8 @@ import { TILE } from './maps.js'
 // ---------------------------------------------------------------------------
 
 export const MAX_LEVEL = 4
+export const TOWER_BASE_HP = 120
+export const TOWER_HP_PER_LEVEL = 60
 export const damageAtLevel = (base, lvl) => base * (1 + 0.45 * (lvl - 1))
 export const rangeAtLevel = (base, lvl) => base * (1 + 0.12 * (lvl - 1))
 export const fireRateAtLevel = (base, lvl) => base * (1 + 0.15 * (lvl - 1))
@@ -63,5 +65,36 @@ export const TOWERS = {
     name: 'Laser Array', cost: 240, mode: 'hitscan', dtype: 'energy', strongVs: 'machines & aircraft',
     range: 3.2 * TILE, damage: 10, fireRate: 8, ramp: 2.6, color: '#ef4444', sprite: 'laser',
     desc: 'Continuous beam that ramps up on a locked target.',
+  },
+
+  // ---- advanced towers ----
+  railgun: {
+    name: 'Railgun', cost: 230, mode: 'hitscan', dtype: 'energy', strongVs: 'lines of enemies (pierces)',
+    range: 5 * TILE, damage: 95, fireRate: 0.75, pierce: true, pierceW: 22, color: '#38bdf8', sprite: 'railgun',
+    desc: 'Piercing beam hits EVERY enemy in a line.',
+  },
+  plasma: {
+    name: 'Plasma Cannon', cost: 220, mode: 'projectile', dtype: 'energy', strongVs: 'tough clusters',
+    range: 2.9 * TILE, damage: 60, fireRate: 1.35, projSpeed: 470, splash: 46, color: '#c084fc', sprite: 'plasma',
+    desc: 'Searing energy bolts with a heavy splash.',
+  },
+  glacier: {
+    name: 'Glacier', cost: 175, mode: 'pulse', dtype: 'frost', strongVs: 'swarms (AoE slow)',
+    range: 2.3 * TILE, damage: 16, fireRate: 1.2, slow: { factor: 0.55, dur: 1.8 }, color: '#7dd3fc', sprite: 'glacier',
+    desc: 'Pulses freezing waves around itself — no aiming.',
+  },
+  sentry: {
+    name: 'Multi Sentry', cost: 200, mode: 'projectile', dtype: 'kinetic', strongVs: 'many targets at once',
+    range: 2.7 * TILE, damage: 16, fireRate: 2.6, projSpeed: 620, multishot: 3, color: '#fbbf24', sprite: 'sentry',
+    desc: 'Fires at up to 3 different enemies per volley.',
+  },
+  obelisk: {
+    name: 'Command Obelisk', cost: 210, mode: 'support', dtype: 'energy', strongVs: 'buffs nearby towers',
+    range: 2.6 * TILE, buff: { damageMult: 1.3, fireMult: 1.15 }, color: '#f472b6', sprite: 'obelisk',
+    desc: 'No attack — boosts nearby towers +30% dmg, +15% rate.',
+  },
+  bank: {
+    name: 'Gold Bank', cost: 160, mode: 'income', income: 24, incomeInterval: 4, color: '#facc15', sprite: 'bank',
+    strongVs: 'your economy', desc: 'No attack — mints gold over time.',
   },
 }
