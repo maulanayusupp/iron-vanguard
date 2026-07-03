@@ -13,6 +13,7 @@ import { TILE } from './maps.js'
 // ---------------------------------------------------------------------------
 
 export const HERO_SLOTS = 3
+export const ULTIMATE_SLOTS = 3
 
 export const RARITY = {
   ultimate: { label: 'Ultimate', color: '#fde047', order: -1 },
@@ -64,6 +65,48 @@ export const HEROES = {
     attack: { mode: 'projectile', dtype: 'fire', range: 3.4 * TILE, damage: 26, fireRate: 1.5, projSpeed: 520, multishot: 7, dot: { dps: 12, dur: 2.5 }, splash: 20 },
     passive: { radius: 0, damageMult: 1.08, fireMult: 1.08 },
     skill: { name: 'Nanoplague', cooldown: 40, desc: 'Infect ALL enemies: 40 dps for 6s + slow.', effect: { type: 'plague_all', dps: 40, dur: 6, factor: 0.4 } },
+  },
+  tecton: {
+    name: 'Tecton', rarity: 'ultimate', sprite: 'hero_tecton', color: '#a16207', size: 1.6,
+    attack: { mode: 'projectile', dtype: 'explosive', range: 3.2 * TILE, damage: 72, fireRate: 1.1, projSpeed: 420, splash: 62, groundOnly: true },
+    passive: { radius: 0, damageMult: 1.12 },
+    skill: { name: 'Earthquake', cooldown: 46, desc: 'Quake: 500 dmg to all GROUND enemies + stun 2s.', effect: { type: 'quake_all', amount: 500, dur: 2 } },
+  },
+  maelstrom: {
+    name: 'Maelstrom', rarity: 'ultimate', sprite: 'hero_wave', color: '#0ea5e9', size: 1.6,
+    attack: { mode: 'projectile', dtype: 'frost', range: 3.2 * TILE, damage: 34, fireRate: 1.6, projSpeed: 520, slow: { factor: 0.45, dur: 1.6 } },
+    passive: { radius: 0, fireMult: 1.12 },
+    skill: { name: 'Tsunami', cooldown: 44, desc: 'A tidal wave hurls ALL enemies back + 400 dmg + chill.', effect: { type: 'tsunami', amount: 400 } },
+  },
+  fulgor: {
+    name: 'Fulgor', rarity: 'ultimate', sprite: 'hero_storm2', color: '#38bdf8', size: 1.6,
+    attack: { mode: 'hitscan', dtype: 'energy', range: 3.2 * TILE, damage: 40, fireRate: 1.8, chain: { jumps: 5, range: 120 } },
+    passive: { radius: 0, damageMult: 1.1, fireMult: 1.08 },
+    skill: { name: 'Thunderstorm', cooldown: 40, desc: 'Lightning strikes rain down for 4s (90/strike).', effect: { type: 'storm', dmg: 90, dur: 4 } },
+  },
+  ignis: {
+    name: 'Ignis', rarity: 'ultimate', sprite: 'hero_volcano', color: '#ef4444', size: 1.6,
+    attack: { mode: 'projectile', dtype: 'fire', range: 3 * TILE, damage: 44, fireRate: 1.5, projSpeed: 470, splash: 52, dot: { dps: 20, dur: 3 } },
+    passive: { radius: 0, damageMult: 1.12 },
+    skill: { name: 'Meteor Rain', cooldown: 42, desc: 'Meteors bombard the field for 4s (120 blast).', effect: { type: 'meteor', dmg: 120, radius: 62, dur: 4 } },
+  },
+  aegis: {
+    name: 'Aegis', rarity: 'ultimate', sprite: 'hero_aegis', color: '#22d3ee', size: 1.6,
+    attack: { mode: 'projectile', dtype: 'kinetic', range: 3.2 * TILE, damage: 62, fireRate: 1.6, projSpeed: 600 },
+    passive: { radius: 0, fireMult: 1.1 },
+    skill: { name: 'Bastion', cooldown: 50, desc: 'Base INVULNERABLE 6s + towers +50% dmg + heal 8 HP.', effect: { type: 'bastion', dur: 6, heal: 8 } },
+  },
+  necron: {
+    name: 'Necron', rarity: 'ultimate', sprite: 'hero_necron', color: '#4d7c0f', size: 1.6,
+    attack: { mode: 'projectile', dtype: 'toxic', range: 3 * TILE, damage: 30, fireRate: 1.5, projSpeed: 480, dot: { dps: 22, dur: 3 } },
+    passive: { radius: 0, damageMult: 1.1 },
+    skill: { name: 'Pandemic', cooldown: 40, desc: 'A contagion infects ALL — it spreads on death (35 dps/6s).', effect: { type: 'pandemic', dps: 35, dur: 6 } },
+  },
+  gaia: {
+    name: 'Gaia', rarity: 'ultimate', sprite: 'hero_gaia', color: '#16a34a', size: 1.6,
+    attack: { mode: 'projectile', dtype: 'frost', range: 3 * TILE, damage: 36, fireRate: 1.7, projSpeed: 500, slow: { factor: 0.4, dur: 1.4 } },
+    passive: { radius: 0, damageMult: 1.1, fireMult: 1.05 },
+    skill: { name: 'Entangle', cooldown: 42, desc: 'Roots snare ALL enemies for 3s + 30 dps.', effect: { type: 'entangle', dur: 3, dps: 30 } },
   },
 
   // ---- Normal ----
@@ -144,6 +187,14 @@ export const HEROES = {
   },
 }
 
-export const HERO_LIST = Object.entries(HEROES)
-  .map(([key, h]) => ({ key, ...h }))
+const ALL_HEROES = Object.entries(HEROES).map(([key, h]) => ({ key, ...h }))
+
+// Regular heroes (Normal→Mythic) — separate from Ultimates.
+export const HERO_LIST = ALL_HEROES
+  .filter((h) => h.rarity !== 'ultimate')
   .sort((a, b) => RARITY[a.rarity].order - RARITY[b.rarity].order)
+
+// Ultimates get their own tab & slot pool.
+export const ULTIMATE_LIST = ALL_HEROES.filter((h) => h.rarity === 'ultimate')
+
+export const isUltimate = (key) => HEROES[key] && HEROES[key].rarity === 'ultimate'

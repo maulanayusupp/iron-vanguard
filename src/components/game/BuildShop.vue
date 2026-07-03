@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue'
 import ShopItem from './ShopItem.vue'
 import { TOWERS, TOWER_BASE_HP } from '../../game/config/towers.js'
-import { HERO_LIST, RARITY, HERO_SLOTS } from '../../game/config/heroes.js'
+import { HERO_LIST, ULTIMATE_LIST, RARITY, HERO_SLOTS, ULTIMATE_SLOTS, isUltimate } from '../../game/config/heroes.js'
 import { typeLabel } from '../../game/config/damage.js'
 import { TILE } from '../../game/config/maps.js'
 import { t } from '../../i18n/index.js'
@@ -29,11 +29,17 @@ const tab = ref('towers')
 
 const allTowers = Object.entries(TOWERS).map(([key, def]) => ({ key, ...def }))
 const towers = computed(() => (props.allowed ? allTowers.filter((t) => props.allowed.includes(t.key)) : allTowers))
-const heroes = HERO_LIST.map((h) => ({ ...h, rarityColor: RARITY[h.rarity].color, rarityLabel: RARITY[h.rarity].label }))
+const withRarity = (h) => ({ ...h, rarityColor: RARITY[h.rarity].color, rarityLabel: RARITY[h.rarity].label })
+const heroes = HERO_LIST.map(withRarity)
+const ultimates = ULTIMATE_LIST.map(withRarity)
 
 const heroSlots = HERO_SLOTS
-const deployedCount = computed(() => props.deployed.length)
+const ultSlots = ULTIMATE_SLOTS
+const deployedHeroes = computed(() => props.deployed.filter((k) => !isUltimate(k)).length)
+const deployedUlts = computed(() => props.deployed.filter((k) => isUltimate(k)).length)
 const isDeployed = (key) => props.deployed.includes(key)
+const heroesFull = computed(() => deployedHeroes.value >= heroSlots)
+const ultsFull = computed(() => deployedUlts.value >= ultSlots)
 </script>
 
 <template>
@@ -41,7 +47,10 @@ const isDeployed = (key) => props.deployed.includes(key)
     <div class="tabs">
       <button :class="{ on: tab === 'towers' }" @click="tab = 'towers'">{{ t('shop.towers') }}</button>
       <button v-if="!heroesLocked" :class="{ on: tab === 'heroes' }" @click="tab = 'heroes'">
-        {{ t('shop.heroes') }} {{ deployedCount }}/{{ heroSlots }}
+        {{ t('shop.heroes') }} {{ deployedHeroes }}/{{ heroSlots }}
+      </button>
+      <button v-if="!heroesLocked" :class="{ on: tab === 'ultimates' }" @click="tab = 'ultimates'">
+        {{ t('shop.ultimates') }} {{ deployedUlts }}/{{ ultSlots }}
       </button>
     </div>
 
@@ -60,7 +69,17 @@ const isDeployed = (key) => props.deployed.includes(key)
         v-for="h in heroes" :key="h.key"
         :color="h.rarityColor" :name="h.name" :badge="h.rarityLabel" badge-accent :stats="heroStat(h)"
         icon-kind="hero" :icon-key="h.key"
-        :active="activeKey === h.key" :dim="isDeployed(h.key)" :disabled="isDeployed(h.key)"
+        :active="activeKey === h.key" :dim="isDeployed(h.key) || heroesFull" :disabled="isDeployed(h.key) || heroesFull"
+        @select="emit('pick', 'hero', h.key)"
+      ><b>{{ h.skill.name }}:</b> {{ h.skill.desc }}</ShopItem>
+    </div>
+
+    <div v-show="tab === 'ultimates'" class="shop">
+      <ShopItem
+        v-for="h in ultimates" :key="h.key"
+        :color="h.rarityColor" :name="h.name" :badge="h.rarityLabel" badge-accent :stats="heroStat(h)"
+        icon-kind="hero" :icon-key="h.key"
+        :active="activeKey === h.key" :dim="isDeployed(h.key) || ultsFull" :disabled="isDeployed(h.key) || ultsFull"
         @select="emit('pick', 'hero', h.key)"
       ><b>{{ h.skill.name }}:</b> {{ h.skill.desc }}</ShopItem>
     </div>

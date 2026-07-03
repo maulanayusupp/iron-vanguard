@@ -1,7 +1,7 @@
 import { TILE, COLS, ROWS, WIDTH, HEIGHT } from './config/maps.js'
 import { TOWERS, MAX_LEVEL as TOWER_MAX, TOWER_BASE_HP, TOWER_HP_PER_LEVEL, damageAtLevel, rangeAtLevel, fireRateAtLevel } from './config/towers.js'
 import { ENEMIES } from './config/enemies.js'
-import { HEROES, HERO_SLOTS, RARITY } from './config/heroes.js'
+import { HEROES, HERO_SLOTS, ULTIMATE_SLOTS, RARITY, isUltimate } from './config/heroes.js'
 import { DAMAGE_TYPES } from './config/damage.js'
 import { MODIFIERS, draftModifiers } from './config/modifiers.js'
 import { drawEnemy, drawTower, drawHero } from './sprites.js'
@@ -54,6 +54,8 @@ export class Game {
     this.slowmo = 0
     this.combo = 0
     this.comboTimer = 0
+    this.fx = []            // timed area effects (storms, meteor rain)
+    this.baseInvulnTimer = 0
     this.mod = { hp: 1, spd: 1, reward: 1, towerCost: 1, towerDmg: 1, towerFire: 1 }
 
     this.build = null
@@ -171,7 +173,11 @@ export class Game {
 
   _deployHero(col, row) {
     const key = this.build.key
-    if (!this.canBuild(col, row) || this.heroes.length >= HERO_SLOTS || this.heroes.some((h) => h.key === key)) return
+    if (!this.canBuild(col, row) || this.heroes.some((h) => h.key === key)) return
+    const ult = isUltimate(key)
+    const cap = ult ? ULTIMATE_SLOTS : HERO_SLOTS
+    const cur = this.heroes.filter((h) => isUltimate(h.key) === ult).length
+    if (cur >= cap) return
     this.heroes.push({
       kind: 'hero', key, col, row, x: col * TILE + TILE / 2, y: row * TILE + TILE / 2,
       cooldown: 0, atkCooldown: 0, angle: 0, recoil: 0, target: null, lockTarget: null, lockTime: 0,
@@ -339,6 +345,8 @@ export class Game {
     if (this.state.status !== 'playing') return
     this.time += dt; this.spin += dt
     if (this.shake > 0) this.shake = Math.max(0, this.shake - dt * 60)
+    if (this.baseInvulnTimer > 0) this.baseInvulnTimer -= dt
+    if (this.fx.length) this._updateFx(dt)
     if (this.comboTimer > 0) { this.comboTimer -= dt; if (this.comboTimer <= 0) this.combo = 0 }
     this.state.combo = this.combo
     this.state.comboMult = 1 + Math.min(1.5, Math.floor(this.combo / 4) * 0.1)
@@ -366,7 +374,7 @@ export class Game {
 
     for (const e of this.enemies) this._moveEnemy(e, dt)
     for (const e of this.enemies) this._updateBossSkills(e, dt)
-    for (const e of this.enemies) { if (e.reached && !e.dead) { e.dead = true; this.state.baseHp -= e.damage } }
+    for (const e of this.enemies) { if (e.reached && !e.dead) { e.dead = true; if (this.baseInvulnTimer <= 0) this.state.baseHp -= e.damage } }
 
     for (const t of this.turrets) this._updateTower(t, dt)
     for (const h of this.heroes) this._updateHero(h, dt)
@@ -794,6 +802,26 @@ export class Game {
     }
   }
 
+  // Timed area effects: thunderstorm (repeated bolts) & meteor rain.
+  _updateFx(dt) {
+    for (const f of this.fx) {
+      f.life -= dt; f.cd -= dt
+      if (f.cd > 0) continue
+      f.cd = f.cdMax
+      const targets = this.enemies.filter((e) => !e.dead)
+      if (f.kind === 'storm') {
+        const e = targets[Math.floor(rand() * targets.length)]
+        if (e) { this._damage(e, f.dmg, 'energy'); this.beams.push({ segs: [[e.x, -10, e.x, e.y]], color: '#a78bfa', life: 0.1, width: 3, bolt: true }); this._spark(e.x, e.y, '#c4b5fd', 6) }
+      } else if (f.kind === 'meteor') {
+        const e = targets[Math.floor(rand() * targets.length)]
+        const x = e ? e.x : rand() * WIDTH, y = e ? e.y : rand() * HEIGHT * 0.8
+        this._explosion(x, y, f.radius, '#f97316'); audioService.explosion(); this.shake = Math.max(this.shake, 5)
+        for (const o of this.enemies) if (!o.dead && Math.hypot(o.x - x, o.y - y) <= f.radius) this._damage(o, f.dmg, 'fire')
+      }
+    }
+    this.fx = this.fx.filter((f) => f.life > 0)
+  }
+
   // dtype: DAMAGE_TYPES key or 'true' to bypass resist/armor.
   // isTick = true for damage-over-time ticks (skips elemental combos).
   _damage(e, dmg, dtype = 'kinetic', isTick = false) {
@@ -842,6 +870,13 @@ export class Game {
       if (e.abilities && e.abilities.split) {
         const { into, count } = e.abilities.split
         for (let i = 0; i < count; i++) this.spawnExtra.push({ type: into, at: { x: e.x + (i - count / 2) * 8, y: e.y }, pathIndex: e.pathIndex, seg: e.seg })
+      }
+      if (e.contagious) { // Necron's Pandemic — spreads on death
+        for (const o of this.enemies) {
+          if (o === e || o.dead || o.contagious) continue
+          if (Math.hypot(o.x - e.x, o.y - e.y) <= 70) { o.dotDps = Math.max(o.dotDps, 30); o.dotTimer = 5; o.dotType = 'toxic'; o.contagious = true }
+        }
+        this._spark(e.x, e.y, '#84cc16', 8)
       }
     }
   }
@@ -976,6 +1011,40 @@ export class Game {
       case 'plague_all':
         for (const e of this.enemies) { e.dotDps = ef.dps; e.dotTimer = ef.dur; e.dotType = 'toxic'; e.slowTimer = ef.dur; e.slowFactor = ef.factor }
         this._flash('rgba(234,179,8,0.18)'); break
+      case 'quake_all': // Tecton — Earthquake: hammer ground enemies + stun + fissures
+        for (const e of this.enemies) { if (e.class !== 'air') { this._damage(e, ef.amount, 'explosive'); e.slowTimer = ef.dur; e.slowFactor = 1 } }
+        this.shake = 16; this._flash('rgba(161,98,7,0.28)'); audioService.explosion()
+        for (let i = 0; i < 6; i++) this._shock(rand() * WIDTH, rand() * HEIGHT, 60 + rand() * 90, '#a16207')
+        this._text(WIDTH / 2, HEIGHT / 2, 'EARTHQUAKE', '#fbbf24', true); break
+      case 'tsunami': { // Maelstrom — Tsunami: hurl enemies back + damage + chill
+        this._flash('rgba(14,165,233,0.3)'); audioService.explosion(); this.shake = 8
+        for (let i = 0; i < 5; i++) this._shock(WIDTH * (0.2 + i * 0.15), HEIGHT / 2, WIDTH * 0.3, '#38bdf8')
+        for (const e of this.enemies) {
+          this._damage(e, ef.amount, 'frost'); e.slowTimer = 2; e.slowFactor = 0.5
+          e.seg = Math.max(1, e.seg - 1); e.dist *= 0.6
+          const wp = (this.pathsPx[e.pathIndex] || this.pathsPx[0])[e.seg - 1]
+          if (wp) { e.x = wp.x; e.y = wp.y }
+        }
+        this._text(WIDTH / 2, HEIGHT / 2, 'TSUNAMI', '#7dd3fc', true); break
+      }
+      case 'storm': // Fulgor — Thunderstorm: repeated strikes over time
+        this.fx.push({ kind: 'storm', life: ef.dur, cd: 0, cdMax: 0.22, dmg: ef.dmg })
+        this._flash('rgba(56,189,248,0.18)'); this._text(WIDTH / 2, HEIGHT / 2, 'THUNDERSTORM', '#38bdf8', true); break
+      case 'meteor': // Ignis — Meteor Rain
+        this.fx.push({ kind: 'meteor', life: ef.dur, cd: 0, cdMax: 0.32, dmg: ef.dmg, radius: ef.radius })
+        this._text(WIDTH / 2, HEIGHT / 2, 'METEOR RAIN', '#f97316', true); break
+      case 'bastion': // Aegis — base invulnerable + tower overcharge
+        this.baseInvulnTimer = ef.dur
+        this.state.baseHp = Math.min(this.state.maxBaseHp, this.state.baseHp + ef.heal)
+        this.buffs.push({ damageMult: 1.5, fireMult: 1.3, expire: this.time + ef.dur })
+        this._flash('rgba(34,211,238,0.22)'); for (const t of this.turrets) this._shock(t.x, t.y, 30, '#22d3ee')
+        this._text(this.basePt.x, this.basePt.y - 24, '🛡 BASTION', '#22d3ee'); break
+      case 'pandemic': // Necron — contagious plague
+        for (const e of this.enemies) { e.dotDps = ef.dps; e.dotTimer = ef.dur; e.dotType = 'toxic'; e.contagious = true }
+        this._flash('rgba(77,124,15,0.22)'); this._text(WIDTH / 2, HEIGHT / 2, 'PANDEMIC', '#84cc16', true); break
+      case 'entangle': // Gaia — roots snare all
+        for (const e of this.enemies) { e.slowTimer = ef.dur; e.slowFactor = 1; e.dotDps = Math.max(e.dotDps, ef.dps); e.dotTimer = ef.dur; e.dotType = 'toxic'; this._spark(e.x, e.y, '#22c55e', 4) }
+        this._flash('rgba(22,163,74,0.2)'); this._text(WIDTH / 2, HEIGHT / 2, 'ENTANGLE', '#4ade80', true); break
     }
   }
 
@@ -1132,7 +1201,7 @@ export class Game {
     const def = isTower ? TOWERS[this.build.key] : HEROES[this.build.key]
     let valid = this.canBuild(col, row)
     if (isTower) valid = valid && this.state.money >= def.cost
-    else valid = valid && this.heroes.length < HERO_SLOTS && !this.heroes.some((h) => h.key === this.build.key)
+    else { const ult = isUltimate(this.build.key); const cap = ult ? ULTIMATE_SLOTS : HERO_SLOTS; valid = valid && this.heroes.filter((h) => isUltimate(h.key) === ult).length < cap && !this.heroes.some((h) => h.key === this.build.key) }
     const cx = col * TILE + TILE / 2, cy = row * TILE + TILE / 2
     const ring = isTower ? def.range : (def.attack ? def.attack.range : 0)
     if (ring) { ctx.globalAlpha = 0.11; ctx.fillStyle = def.color; ctx.beginPath(); ctx.arc(cx, cy, ring, 0, TAU); ctx.fill(); ctx.globalAlpha = 1 }

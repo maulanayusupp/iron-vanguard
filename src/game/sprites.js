@@ -901,11 +901,68 @@ function h_hive(ctx, r, c, ac, a) {
   ctx.fillStyle = ac; for (let i = 0; i < 3; i++) { const an = s * 3 + i / 3 * TAU; ctx.beginPath(); ctx.arc(Math.cos(an) * r * 0.95, Math.sin(an) * r * 0.95, r * 0.1, 0, TAU); ctx.fill() }
 }
 
+function h_tecton(ctx, r, c, ac, a) {
+  const s = a ? a.spin : 0, dk = shade(c, -35), lt = shade(c, 18)
+  ctx.fillStyle = dk; rr(ctx, -r * 0.3, -r * 0.85, r * 0.5, r * 0.55, r * 0.1); ctx.fill(); rr(ctx, -r * 0.3, r * 0.3, r * 0.5, r * 0.55, r * 0.1); ctx.fill()
+  ctx.fillStyle = dk; ctx.beginPath(); ctx.arc(r * 0.7, -r * 0.5, r * 0.26, 0, TAU); ctx.fill(); ctx.beginPath(); ctx.arc(r * 0.7, r * 0.5, r * 0.26, 0, TAU); ctx.fill()
+  const g = ctx.createLinearGradient(0, -r, 0, r); g.addColorStop(0, lt); g.addColorStop(1, dk)
+  ctx.fillStyle = g; ctx.beginPath()
+  ctx.moveTo(-r * 0.6, -r * 0.4); ctx.lineTo(-r * 0.2, -r * 0.78); ctx.lineTo(r * 0.55, -r * 0.55); ctx.lineTo(r * 0.72, r * 0.1); ctx.lineTo(r * 0.35, r * 0.72); ctx.lineTo(-r * 0.45, r * 0.62); ctx.lineTo(-r * 0.72, r * 0.1); ctx.closePath(); ctx.fill()
+  const glow = 0.5 + 0.5 * Math.sin(s * 5); ctx.globalAlpha = glow; ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = r * 0.07
+  ctx.beginPath(); ctx.moveTo(-r * 0.3, -r * 0.3); ctx.lineTo(0, 0); ctx.lineTo(-r * 0.1, r * 0.4); ctx.moveTo(0, 0); ctx.lineTo(r * 0.4, r * 0.05); ctx.stroke(); ctx.globalAlpha = 1
+  ctx.fillStyle = shade(c, -14); ctx.beginPath(); ctx.arc(r * 0.35, 0, r * 0.24, 0, TAU); ctx.fill()
+  ctx.fillStyle = ac; ctx.beginPath(); ctx.arc(r * 0.42, -r * 0.07, r * 0.05, 0, TAU); ctx.fill(); ctx.beginPath(); ctx.arc(r * 0.42, r * 0.07, r * 0.05, 0, TAU); ctx.fill()
+}
+function h_wave(ctx, r, c, ac, a) {
+  hmage(ctx, r, c, '#bae6fd'); const s = a ? a.spin : 0, ox = r * 0.95
+  ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = r * 0.09; ctx.globalAlpha = 0.85
+  for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(ox, 0, r * 0.14 + i * 0.11 * r, s * 4 + i, s * 4 + i + 3.4); ctx.stroke() }
+  ctx.globalAlpha = 1
+  const g = ctx.createRadialGradient(ox, 0, 1, ox, 0, r * 0.28); g.addColorStop(0, '#e0f2fe'); g.addColorStop(1, '#0ea5e9')
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(ox, 0, r * 0.2, 0, TAU); ctx.fill()
+}
+function h_storm2(ctx, r, c, ac, a) {
+  hmage(ctx, r, c, '#e0f2fe'); const s = a ? a.spin : 0
+  ctx.fillStyle = '#334155'; ctx.beginPath(); ctx.arc(r * 0.8, -r * 0.2, r * 0.28, 0, TAU); ctx.arc(r * 1.05, -r * 0.1, r * 0.22, 0, TAU); ctx.arc(r * 0.6, -r * 0.05, r * 0.2, 0, TAU); ctx.fill()
+  ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = r * 0.06; ctx.globalAlpha = 0.5 + 0.5 * Math.abs(Math.sin(s * 9))
+  ctx.beginPath(); ctx.moveTo(r * 0.8, 0); ctx.lineTo(r * 0.7, r * 0.3); ctx.lineTo(r * 0.85, r * 0.3); ctx.lineTo(r * 0.75, r * 0.6); ctx.stroke(); ctx.globalAlpha = 1
+}
+function h_volcano(ctx, r, c, ac, a) {
+  mech(ctx, r * 0.9, c, '#f59e0b', a); const s = a ? a.spin : 0
+  ctx.globalAlpha = 0.4 + 0.6 * Math.abs(Math.sin(s * 6)); ctx.strokeStyle = '#f97316'; ctx.lineWidth = r * 0.05
+  ctx.beginPath(); ctx.moveTo(-r * 0.3, -r * 0.2); ctx.lineTo(-r * 0.05, r * 0.1); ctx.lineTo(-r * 0.2, r * 0.4); ctx.stroke(); ctx.globalAlpha = 1
+}
+function h_aegis(ctx, r, c, ac, a) {
+  hbody(ctx, r, c, ac, a, false)
+  ctx.fillStyle = shade(c, -20); ctx.beginPath(); ctx.arc(0, 0, r * 0.34, 0, TAU); ctx.fill()
+  const g = ctx.createRadialGradient(r * 0.7, 0, 1, r * 0.7, 0, r * 0.6); g.addColorStop(0, '#67e8f9'); g.addColorStop(1, shade(c, -15))
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(r * 0.7, 0, r * 0.55, 0, TAU); ctx.fill()
+  ctx.strokeStyle = '#e0f2fe'; ctx.lineWidth = r * 0.08; ctx.beginPath(); ctx.arc(r * 0.7, 0, r * 0.55, 0, TAU); ctx.stroke()
+  ctx.fillStyle = '#0b1120'; ctx.beginPath(); ctx.arc(r * 0.7, 0, r * 0.16, 0, TAU); ctx.fill()
+}
+function h_necron(ctx, r, c, ac, a) {
+  hmage(ctx, r, c, '#a3e635')
+  ctx.strokeStyle = '#3f3f46'; ctx.lineWidth = r * 0.08; ctx.beginPath(); ctx.moveTo(r * 0.2, r * 0.45); ctx.lineTo(r * 0.9, -r * 0.5); ctx.stroke()
+  ctx.strokeStyle = '#a3e635'; ctx.lineWidth = r * 0.1; ctx.beginPath(); ctx.arc(r * 0.9, -r * 0.5, r * 0.4, -0.2, 1.9); ctx.stroke()
+  ctx.fillStyle = '#e5e7eb'; ctx.beginPath(); ctx.arc(r * 0.16, 0, r * 0.2, 0, TAU); ctx.fill()
+  ctx.fillStyle = '#0b0620'; ctx.beginPath(); ctx.arc(r * 0.2, -r * 0.07, r * 0.06, 0, TAU); ctx.fill(); ctx.beginPath(); ctx.arc(r * 0.2, r * 0.07, r * 0.06, 0, TAU); ctx.fill()
+}
+function h_gaia(ctx, r, c, ac, a) {
+  hmage(ctx, r, c, '#bbf7d0')
+  ctx.strokeStyle = shade(c, -20); ctx.lineWidth = r * 0.06; ctx.lineCap = 'round'
+  ctx.beginPath(); ctx.moveTo(0, -r * 0.3); ctx.lineTo(-r * 0.15, -r * 0.6); ctx.moveTo(-r * 0.05, -r * 0.45); ctx.lineTo(-r * 0.25, -r * 0.5); ctx.moveTo(r * 0.1, -r * 0.3); ctx.lineTo(r * 0.05, -r * 0.62); ctx.stroke()
+  ctx.fillStyle = '#22c55e'
+  for (const [lx, ly] of [[r * 0.85, -r * 0.1], [r * 0.95, r * 0.1], [r * 0.75, r * 0.25]]) { ctx.beginPath(); ctx.ellipse(lx, ly, r * 0.16, r * 0.08, 0.5, 0, TAU); ctx.fill() }
+  const g = ctx.createRadialGradient(r * 0.7, 0, 1, r * 0.7, 0, r * 0.22); g.addColorStop(0, '#dcfce7'); g.addColorStop(1, '#16a34a')
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(r * 0.7, 0, r * 0.16, 0, TAU); ctx.fill()
+}
+
 const HERO_ROUTINES = {
   rifleman: h_rifle, sharpshooter: h_sniper, grenadier: h_grenade, engineer: h_engineer,
   bombardier: h_bombardier, pyromancer: h_pyro, frostqueen: h_frost, stormcaller: h_storm,
   chronos: h_chronos, warlord: h_warlord, phoenix: h_phoenix, titanhero: h_titan, overlord: h_overlord,
   singularity: h_void, prisma: h_prism, warden: h_chakram, reaper: h_reaper, hive: h_hive,
+  tecton: h_tecton, maelstrom: h_wave, fulgor: h_storm2, ignis: h_volcano, aegis: h_aegis, necron: h_necron, gaia: h_gaia,
 }
 
 export function drawHero(ctx, h, def, rarityColor, spin) {

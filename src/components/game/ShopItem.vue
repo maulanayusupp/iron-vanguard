@@ -24,11 +24,17 @@ defineEmits(['select'])
     :disabled="disabled"
     @click="$emit('select')"
   >
-    <UnitIcon v-if="iconKey" :kind="iconKind" :item-key="iconKey" />
-    <span v-else class="shop-item__dot"></span>
-    <span class="shop-item__name">{{ name }}</span>
-    <span class="shop-item__badge" :class="{ 'shop-item__badge--accent': badgeAccent }">{{ badge }}</span>
-    <span v-if="stats" class="shop-item__stats">{{ stats }}</span>
-    <span class="shop-item__desc"><slot /></span>
+    <span class="shop-item__icon">
+      <UnitIcon v-if="iconKey" :kind="iconKind" :item-key="iconKey" />
+      <span v-else class="shop-item__dot"></span>
+    </span>
+    <span class="shop-item__main">
+      <span class="shop-item__head">
+        <span class="shop-item__name">{{ name }}</span>
+        <span class="shop-item__badge" :class="{ 'shop-item__badge--accent': badgeAccent }">{{ badge }}</span>
+      </span>
+      <span v-if="stats" class="shop-item__stats">{{ stats }}</span>
+      <span class="shop-item__desc"><slot /></span>
+    </span>
   </button>
 </template>
