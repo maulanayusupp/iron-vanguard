@@ -492,7 +492,31 @@ function juggernaut(ctx, r, color, accent, anim) {
   ctx.globalAlpha = pulse; ctx.fillStyle = accent; ctx.fillRect(-r * 0.1, -r * 0.28, r * 0.3, r * 0.56); ctx.globalAlpha = 1
 }
 
+function raptor(ctx, r, color, accent, anim) {
+  const w = anim ? anim.walk : 0, dk = shade(color, -25)
+  const g1 = Math.sin(w * 3) * r * 0.4, g2 = Math.sin(w * 3 + Math.PI) * r * 0.4
+  // powerful hind legs + small forelimbs
+  ctx.strokeStyle = dk; ctx.lineWidth = r * 0.16; ctx.lineCap = 'round'
+  ctx.beginPath(); ctx.moveTo(-r * 0.2, -r * 0.28); ctx.lineTo(-r * 0.2 + g1, -r * 0.82); ctx.stroke()
+  ctx.beginPath(); ctx.moveTo(-r * 0.2, r * 0.28); ctx.lineTo(-r * 0.2 + g1, r * 0.82); ctx.stroke()
+  ctx.lineWidth = r * 0.09
+  ctx.beginPath(); ctx.moveTo(r * 0.35, -r * 0.15); ctx.lineTo(r * 0.35 + g2 * 0.4, -r * 0.5); ctx.stroke()
+  ctx.beginPath(); ctx.moveTo(r * 0.35, r * 0.15); ctx.lineTo(r * 0.35 + g2 * 0.4, r * 0.5); ctx.stroke()
+  // long tail
+  ctx.strokeStyle = color; ctx.lineWidth = r * 0.14
+  ctx.beginPath(); ctx.moveTo(-r * 0.55, 0); ctx.quadraticCurveTo(-r * 1.15, g1 * 0.4, -r * 1.35, -r * 0.1); ctx.stroke()
+  // sleek body
+  const g = ctx.createLinearGradient(0, -r * 0.4, 0, r * 0.4); g.addColorStop(0, shade(color, 20)); g.addColorStop(1, dk)
+  outline(ctx, () => { ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(-r * 0.05, 0, r * 0.62, r * 0.34, 0, 0, TAU); ctx.fill() })
+  // head with jaws
+  ctx.fillStyle = shade(color, -6); ctx.beginPath(); ctx.ellipse(r * 0.62, 0, r * 0.34, r * 0.24, 0, 0, TAU); ctx.fill()
+  ctx.fillStyle = dk; ctx.beginPath(); ctx.moveTo(r * 0.85, -r * 0.1); ctx.lineTo(r * 1.15, 0); ctx.lineTo(r * 0.85, r * 0.1); ctx.fill()
+  ctx.fillStyle = '#f8fafc'; ctx.fillRect(r * 0.9, -r * 0.05, r * 0.14, r * 0.04); ctx.fillRect(r * 0.9, r * 0.02, r * 0.14, r * 0.04)
+  ctx.fillStyle = accent; ctx.beginPath(); ctx.arc(r * 0.72, -r * 0.09, r * 0.07, 0, TAU); ctx.fill(); ctx.beginPath(); ctx.arc(r * 0.72, r * 0.09, r * 0.07, 0, TAU); ctx.fill()
+}
+
 const ENEMY_ROUTINES = {
+  raptor,
   soldier: (c, r, col, ac, a) => soldier(c, r, col, ac, false, a),
   soldier_heavy: (c, r, col, ac, a) => soldier(c, r, col, ac, true, a),
   medic, shield: shieldUnit,

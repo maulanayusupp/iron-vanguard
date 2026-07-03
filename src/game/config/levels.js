@@ -24,8 +24,9 @@ const UNLOCKS = [
   { from: 8, keys: ['medic'] },
   { from: 9, keys: ['slime'] },
   { from: 12, keys: ['drone', 'apc'] },
-  { from: 7, keys: ['bomber'] },
+  { from: 7, keys: ['bomber', 'raptor'] },
   { from: 10, keys: ['imp'] },
+  { from: 35, keys: ['goliath'] },
   { from: 14, keys: ['sapper'] },
   { from: 16, keys: ['lighttank'] },
   { from: 18, keys: ['brute'] },
@@ -53,8 +54,8 @@ function availableEnemies(n) {
 
 // The giant mini-boss that leads EVERY wave — bigger & tougher as levels rise.
 function pickWaveBoss(n, rand) {
-  const pool = n < 6 ? ['heavy'] : n < 12 ? ['brute'] : n < 25 ? ['juggernaut', 'golem']
-    : n < 45 ? ['behemoth', 'colossus', 'mech'] : ['colossus', 'mech', 'commander']
+  const pool = n < 6 ? ['heavy', 'brute'] : n < 12 ? ['brute', 'juggernaut'] : n < 25 ? ['juggernaut', 'golem', 'goliath']
+    : n < 45 ? ['behemoth', 'colossus', 'goliath', 'mech'] : ['colossus', 'goliath', 'mech', 'commander']
   return pool[Math.floor(rand() * pool.length)]
 }
 
@@ -68,10 +69,11 @@ export function getLevelConfig(n) {
   const theme = THEMES[zone % THEMES.length]
   const chapter = Math.floor((n - 1) / CHAPTER_SIZE) + 1
 
-  // Tougher curve — a couple of towers should NOT clear a wave.
-  const hpMult = 1 + (n - 1) * 0.06
-  const spdMult = 1 + Math.min(0.78, (n - 1) * 0.0042)
-  const rewardMult = 1 + (n - 1) * 0.015
+  // Steep curve: fair at level 1, brutal by level 8+ (≈5-10x by the 30s-40s).
+  // Real strategy, upgrades, damage-type matching and hero skills are mandatory.
+  const hpMult = 1 + (n - 1) * 0.12
+  const spdMult = 1 + Math.min(0.85, (n - 1) * 0.0045)
+  const rewardMult = 1 + (n - 1) * 0.02
 
   const pool = availableEnemies(n)
   // More waves per level → longer, more enjoyable runs.
@@ -92,9 +94,9 @@ export function getLevelConfig(n) {
       const nScale = 1 + Math.min(1.7, (n - 1) * 0.028)
       // Ramps hard WITHIN the level: gentle first wave, overwhelming finale.
       // Faster stream in later waves means more enemies on screen at once.
-      let count = Math.round((8 + i * 4.6) * nScale * (fast ? 1.4 : 1) / (tanky ? 2.6 : 1))
-      count = clamp(count, 7, 220)
-      const interval = clamp((0.8 - i * 0.035) * (fast ? 0.62 : 1), 0.2, 0.8)
+      let count = Math.round((8 + i * 4.8) * nScale * (fast ? 1.4 : 1) / (tanky ? 2.6 : 1))
+      count = clamp(count, 7, 240)
+      const interval = clamp((0.78 - i * 0.035) * (fast ? 0.6 : 1), 0.19, 0.78)
       groups.push({ type, count, interval, delay: +(g * (0.8 + rand() * 2.4)).toFixed(2) })
     }
     // Random champion(s) (enemy heroes): elite reinforcements.

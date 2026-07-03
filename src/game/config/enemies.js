@@ -164,6 +164,19 @@ export const ENEMIES = {
     abilities: { siege: { range: 2.0 * 64, dps: 72 }, deathBomb: { radius: 2.0 * 64, dmg: 150 } },
   },
 
+  raptor: {
+    name: 'Raptor', class: 'ground', hp: 170, speed: 148, reward: 22, damage: 2, radius: 14,
+    armor: 0.05, res: { frost: 1.4, fire: 1.3 }, sprite: 'raptor', color: '#166534', accent: '#fde047',
+    // Leaps forward in fast bursts — very hard to track.
+    abilities: { leap: { interval: 2.0, dist: 90, boost: 4.5 } },
+  },
+  goliath: {
+    name: 'Goliath', class: 'ground', hp: 2800, speed: 26, reward: 155, damage: 12, radius: 30,
+    armor: 0.55, res: { kinetic: 0.4, explosive: 1.35, energy: 1.15 }, sprite: 'juggernaut', color: '#3f3f46', accent: '#f87171',
+    // Slow, but tears through your turrets.
+    abilities: { siege: { range: 1.8 * 64, dps: 62 } },
+  },
+
   // ---- bosses ----
   mech: {
     name: 'Battle Mech', class: 'ground', hp: 1500, speed: 42, reward: 130, damage: 10, radius: 28,

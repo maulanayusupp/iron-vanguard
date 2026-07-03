@@ -239,14 +239,24 @@ export class Game {
     }
     if (waveBoss) {
       const tier = opts.tier || 0
-      hp *= 2.4 + tier * 0.5 // stronger every wave
-      radius *= 1.55         // a giant
-      reward *= 6; speed *= 0.9
-      armor = Math.max(armor, 0.2)
+      hp *= 3 + tier * 0.9   // much stronger, and grows every wave
+      radius *= 1.6          // a giant
+      reward *= 7; speed *= 0.9
+      armor = Math.max(armor, 0.25)
       name = 'Boss ' + def.name
       abilities = abilities ? { ...abilities } : {}
       // always able to smash your turrets
-      if (!abilities.siege) abilities.siege = { range: 1.7 * 64, dps: 36 + tier * 4 }
+      if (!abilities.siege) abilities.siege = { range: 1.7 * 64, dps: 50 + tier * 6 }
+    }
+    // Bosses get 2-3 unique active skills (see _bossSkill).
+    let bossSkills = null, skillCd = 0
+    if (waveBoss || def.boss) {
+      const poolS = ['slam', 'barrage', 'summon', 'rage', 'shield']
+      const cnt = waveBoss ? 2 : 3
+      bossSkills = []
+      const ps = poolS.slice()
+      for (let k = 0; k < cnt && ps.length; k++) bossSkills.push(ps.splice(Math.floor(rand() * ps.length), 1)[0])
+      skillCd = 3 + rand() * 2.5
     }
     const p = opts.at || this.pathPx[0]
     this.enemies.push({
@@ -257,6 +267,9 @@ export class Game {
       slowTimer: 0, slowFactor: 0, dotTimer: 0, dotDps: 0, dotType: 'fire', buffSpeed: 1, siegeTarget: null,
       artCd: abilities && abilities.artillery ? rand() * abilities.artillery.interval : 0,
       summonCd: abilities && abilities.summon ? abilities.summon.interval : 0,
+      rageTimer: 0, shieldTimer: 0, leaping: 0,
+      leapCd: abilities && abilities.leap ? rand() * abilities.leap.interval : 0,
+      bossSkills, skillCd, skillIx: 0,
       dead: false, reached: false,
     })
     if (champion) this._text(p.x, p.y, 'ELITE!', '#fbbf24')
@@ -290,6 +303,7 @@ export class Game {
     }
 
     for (const e of this.enemies) this._moveEnemy(e, dt)
+    for (const e of this.enemies) this._updateBossSkills(e, dt)
     for (const e of this.enemies) { if (e.reached && !e.dead) { e.dead = true; this.state.baseHp -= e.damage } }
 
     for (const t of this.turrets) this._updateTower(t, dt)
@@ -322,6 +336,13 @@ export class Game {
     if (e.dead) return
     if (e.abilities && e.abilities.regen && e.hp < e.maxHp) e.hp = Math.min(e.maxHp, e.hp + e.abilities.regen * dt)
     if (e.slowTimer > 0) e.slowTimer -= dt
+    if (e.rageTimer > 0) e.rageTimer -= dt
+    if (e.shieldTimer > 0) e.shieldTimer -= dt
+    // leap: charge, then dash forward in a fast burst
+    if (e.abilities && e.abilities.leap) {
+      if (e.leaping > 0) e.leaping -= dt
+      else { e.leapCd -= dt; if (e.leapCd <= 0) { e.leapCd = e.abilities.leap.interval; e.leaping = 0.28; this._spark(e.x, e.y, e.accent || '#fde047', 6) } }
+    }
 
     if (e.abilities && e.abilities.siege) {
       const { range, dps } = e.abilities.siege
@@ -366,7 +387,9 @@ export class Game {
     let enrage = 1
     if (e.abilities && e.abilities.enrage && e.hp / e.maxHp < e.abilities.enrage.below) enrage = e.abilities.enrage.speedMult
     const slow = e.slowTimer > 0 ? 1 - e.slowFactor : 1
-    const move = e.speed * enrage * e.buffSpeed * slow * dt
+    const leap = e.leaping > 0 ? e.abilities.leap.boost : 1
+    const rageM = e.rageTimer > 0 ? 1.6 : 1
+    const move = e.speed * enrage * e.buffSpeed * slow * leap * rageM * dt
     const dx = target.x - e.x, dy = target.y - e.y, d = Math.hypot(dx, dy)
     e.angle = Math.atan2(dy, dx)
     if (d <= move) { e.x = target.x; e.y = target.y; e.dist += d; e.seg += 1; if (e.seg >= this.pathPx.length) e.reached = true }
@@ -555,6 +578,7 @@ export class Game {
       if (e.res && e.res[dtype]) dmg *= e.res[dtype]
       if (dtype === 'kinetic') dmg *= 1 - e.armor
     }
+    if (e.shieldTimer > 0) dmg *= 0.3 // active boss shield
     e.hp -= dmg
     if (e.hp <= 0) {
       e.dead = true; this.state.money += e.reward; this.state.kills += 1
@@ -571,6 +595,42 @@ export class Game {
         const { into, count } = e.abilities.split
         for (let i = 0; i < count; i++) this.spawnExtra.push({ type: into, at: { x: e.x + (i - count / 2) * 8, y: e.y } })
       }
+    }
+  }
+
+  // ---- boss skills (unique, with big visible effects) --------------------
+
+  _updateBossSkills(e, dt) {
+    if (!e.bossSkills || e.dead) return
+    e.skillCd -= dt
+    if (e.skillCd > 0) return
+    e.skillCd = 5.5 + rand() * 3
+    this._bossSkill(e, e.bossSkills[Math.floor(rand() * e.bossSkills.length)])
+  }
+
+  _bossSkill(e, sk) {
+    switch (sk) {
+      case 'slam': { // ground-pound shockwave that smashes nearby turrets
+        this._explosion(e.x, e.y, 130, '#f43f5e'); this._shock(e.x, e.y, 155, '#f43f5e'); this._flash('rgba(244,63,94,0.18)')
+        audioService.explosion(); this._text(e.x, e.y - e.radius, 'SLAM!', '#f43f5e', true)
+        for (const t of this.turrets.slice()) if (Math.hypot(t.x - e.x, t.y - e.y) <= 145) { t.hp -= 85; if (t.hp <= 0) this._destroyTower(t) }
+        break
+      }
+      case 'barrage': { // volley of shells at your towers
+        this._text(e.x, e.y - e.radius, 'BARRAGE!', '#fbbf24'); audioService.shoot(200)
+        const targets = this.turrets.slice().sort(() => rand() - 0.5).slice(0, 5)
+        for (const t of targets) this.enemyShots.push({ x: e.x, y: e.y, target: t, speed: 320, dmg: 60, splash: 44, dead: false })
+        break
+      }
+      case 'summon': { // portal that spawns a burst of imps
+        this._shock(e.x, e.y, 70, '#a78bfa'); this._spark(e.x, e.y, '#a78bfa', 12); this._text(e.x, e.y - e.radius, 'SUMMON!', '#a78bfa')
+        for (let i = 0; i < 4; i++) this.spawnExtra.push({ type: 'imp', at: { x: e.x + (i - 2) * 12, y: e.y } })
+        break
+      }
+      case 'rage': // temporary speed frenzy
+        e.rageTimer = 3.5; this._flash('rgba(239,68,68,0.15)'); this._spark(e.x, e.y, '#ef4444', 12); this._text(e.x, e.y - e.radius, 'ENRAGE!', '#ef4444'); break
+      case 'shield': // damage-reduction bubble
+        e.shieldTimer = 5; this._shock(e.x, e.y, e.radius * 2.2, '#38bdf8'); this._text(e.x, e.y - e.radius, 'SHIELD!', '#38bdf8'); break
     }
   }
 
@@ -797,6 +857,11 @@ export class Game {
       ctx.globalAlpha = 0.4; ctx.fillStyle = '#bfdbfe'; ctx.beginPath(); ctx.arc(e.x, e.y, e.radius + 3, 0, TAU); ctx.fill(); ctx.globalAlpha = 1
     } else if (e.slowTimer > 0) { ctx.strokeStyle = 'rgba(147,197,253,0.8)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(e.x, e.y, e.radius + 5, 0, TAU); ctx.stroke() }
     if (e.dotTimer > 0) { ctx.strokeStyle = e.dotType === 'toxic' ? 'rgba(132,204,22,0.8)' : 'rgba(249,115,22,0.85)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(e.x, e.y, e.radius + 3, 0, TAU); ctx.stroke() }
+    if (e.shieldTimer > 0) {
+      ctx.globalAlpha = 0.7; ctx.strokeStyle = 'rgba(56,189,248,0.8)'; ctx.lineWidth = 3
+      ctx.beginPath(); ctx.arc(e.x, e.y, e.radius + 7, 0, TAU); ctx.stroke()
+      ctx.globalAlpha = 0.14; ctx.fillStyle = '#38bdf8'; ctx.beginPath(); ctx.arc(e.x, e.y, e.radius + 7, 0, TAU); ctx.fill(); ctx.globalAlpha = 1
+    }
   }
 
   _renderProjectiles(ctx) {

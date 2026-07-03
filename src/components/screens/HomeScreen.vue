@@ -1,7 +1,9 @@
 <script setup>
+import { ref, onMounted, onUnmounted } from 'vue'
 import AppButton from '../ui/AppButton.vue'
 import { useProgress } from '../../composables/useProgress.js'
 import { levelService } from '../../services/level.service.js'
+import { AmbientScene } from '../../game/ambient.js'
 import { APP_NAME_LEAD, APP_NAME_ACCENT, APP_TAGLINE } from '../../constants/app.js'
 
 const { progress, totalStars } = useProgress()
@@ -12,13 +14,17 @@ const chapters = levelService.chapterCount
 const nameLead = APP_NAME_LEAD
 const nameAccent = APP_NAME_ACCENT
 const tagline = APP_TAGLINE
+
+const sceneRef = ref(null)
+let scene = null
+onMounted(() => { scene = new AmbientScene(sceneRef.value); scene.start() })
+onUnmounted(() => { if (scene) scene.stop() })
 </script>
 
 <template>
   <div class="home">
-    <div class="home__bg" aria-hidden="true">
-      <span class="home__grid"></span>
-    </div>
+    <canvas ref="sceneRef" class="home__scene" aria-hidden="true"></canvas>
+    <div class="home__veil" aria-hidden="true"></div>
 
     <div class="home__inner">
       <div class="emblem">
