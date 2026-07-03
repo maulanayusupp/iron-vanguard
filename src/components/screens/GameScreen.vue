@@ -74,6 +74,10 @@ onUnmounted(destroy)
           🔥 {{ state.combo }} COMBO <span>+{{ Math.round((state.comboMult - 1) * 100) }}% gold</span>
         </div>
 
+        <div v-if="state.announce.text" class="announce" :key="state.announce.id" aria-hidden="true">
+          <span class="announce__text" v-accent="state.announce.color">{{ state.announce.text }}</span>
+        </div>
+
         <DraftOverlay v-if="state.drafting" :choices="state.draftChoices" @pick="chooseModifier" />
 
         <div class="hud-top">

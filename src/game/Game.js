@@ -56,6 +56,8 @@ export class Game {
     this.comboTimer = 0
     this.fx = []            // timed area effects (storms, meteor rain)
     this.baseInvulnTimer = 0
+    this._annId = 0         // kill-streak announcement id
+    this._annTier = -1
     this.mod = { hp: 1, spd: 1, reward: 1, towerCost: 1, towerDmg: 1, towerFire: 1 }
 
     this.build = null
@@ -82,6 +84,7 @@ export class Game {
     s.deployed = []
     s.combo = 0
     s.comboMult = 1
+    s.announce = { id: 0, text: '', color: '#e2e8f0' }
     s.modName = ''
     s.allowed = level.allowed || null
     s.heroesLocked = level.mode === 'puzzle'
@@ -347,7 +350,7 @@ export class Game {
     if (this.shake > 0) this.shake = Math.max(0, this.shake - dt * 60)
     if (this.baseInvulnTimer > 0) this.baseInvulnTimer -= dt
     if (this.fx.length) this._updateFx(dt)
-    if (this.comboTimer > 0) { this.comboTimer -= dt; if (this.comboTimer <= 0) this.combo = 0 }
+    if (this.comboTimer > 0) { this.comboTimer -= dt; if (this.comboTimer <= 0) { this.combo = 0; this._annTier = -1 } }
     this.state.combo = this.combo
     this.state.comboMult = 1 + Math.min(1.5, Math.floor(this.combo / 4) * 0.1)
     if (this.buffs.length) this.buffs = this.buffs.filter((b) => b.expire > this.time)
@@ -671,6 +674,20 @@ export class Game {
     }
   }
 
+  _checkAnnounce() {
+    const TIERS = [
+      [3, 'TRIPLE KILL', '#22d3ee'], [5, 'RAMPAGE', '#a78bfa'], [8, 'KILLING SPREE', '#f59e0b'],
+      [12, 'UNSTOPPABLE', '#fb923c'], [16, 'GODLIKE', '#ef4444'], [22, 'SAVAGE!', '#f43f5e'],
+    ]
+    let ti = -1
+    for (let i = 0; i < TIERS.length; i++) if (this.combo >= TIERS[i][0]) ti = i
+    if (ti > this._annTier) {
+      this._annTier = ti
+      this.state.announce = { id: ++this._annId, text: TIERS[ti][1], color: TIERS[ti][2] }
+      audioService.combo(); this.shake = Math.max(this.shake, 7); this._flash('rgba(255,255,255,0.12)')
+    }
+  }
+
   _gainXp(t) {
     t.xp = (t.xp || 0) + 1
     const nv = t.xp >= 280 ? 3 : t.xp >= 120 ? 2 : t.xp >= 40 ? 1 : 0
@@ -858,6 +875,7 @@ export class Game {
       this.combo++; this.comboTimer = 2.5
       const cmult = 1 + Math.min(1.5, Math.floor(this.combo / 4) * 0.1)
       this.state.money += Math.round(e.reward * cmult)
+      this._checkAnnounce()
       this._debris(e.x, e.y, e.color)
       if (e.champion) { this._explosion(e.x, e.y, e.radius * 1.6, '#fbbf24'); this._text(e.x, e.y, '+$' + Math.round(e.reward * cmult), '#fbbf24') }
       if (e.waveBoss) { this._explosion(e.x, e.y, e.radius * 2.2, '#f43f5e'); audioService.explosion(); this._text(e.x, e.y, 'BOSS DOWN', '#f43f5e', true); this.shake = 10; this.slowmo = Math.max(this.slowmo, 0.25) }

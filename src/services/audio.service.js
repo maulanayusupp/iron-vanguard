@@ -105,6 +105,15 @@ export const audioService = {
     tone('sawtooth', 200, 1200, 0.35, 0.12, c.currentTime)
   },
 
+  combo() { // punchy kill-streak stinger
+    if (muted) return
+    const c = ensure()
+    if (!c) return
+    const t = c.currentTime
+    tone('square', 700, 920, 0.12, 0.12, t)
+    tone('square', 940, 1320, 0.16, 0.1, t + 0.06)
+  },
+
   end(win) {
     if (muted) return
     const c = ensure()

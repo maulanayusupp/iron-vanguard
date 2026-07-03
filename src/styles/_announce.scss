@@ -1,0 +1,38 @@
+@use 'variables' as *;
+
+// MOBA-style kill-streak banner (TRIPLE KILL / RAMPAGE / SAVAGE!)
+.announce {
+  position: absolute;
+  top: 24%;
+  left: 0; right: 0;
+  text-align: center;
+  pointer-events: none;
+  z-index: 6;
+
+  &__text {
+    display: inline-block;
+    font-weight: 900;
+    font-size: clamp(30px, 6.5vw, 58px);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    background: linear-gradient(180deg, #ffffff 35%, var(--c));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 0 20px var(--c)) drop-shadow(0 2px 2px rgba(0, 0, 0, 0.6));
+    animation: announce-pop 1.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  }
+}
+
+@keyframes announce-pop {
+  0% { opacity: 0; transform: scale(2) rotate(-5deg); letter-spacing: 16px; filter: drop-shadow(0 0 34px var(--c)) blur(4px); }
+  14% { opacity: 1; transform: scale(1) rotate(0); letter-spacing: 3px; filter: drop-shadow(0 0 20px var(--c)); }
+  22% { transform: scale(1.08); }
+  30% { transform: scale(1); }
+  72% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.12) translateY(-18px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .announce__text { animation: none; }
+}
