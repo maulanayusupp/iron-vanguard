@@ -30,6 +30,41 @@ export const HEROES = {
     passive: { radius: 0, damageMult: 1.2, fireMult: 1.1 }, // global aura
     skill: { name: 'Cataclysm', cooldown: 50, desc: '900 damage to ALL enemies + freeze 2.5s.', effect: { type: 'orbital', amount: 900, dur: 2.5 } },
   },
+  singularity: {
+    name: 'Nyx', rarity: 'ultimate', sprite: 'hero_void', color: '#7c3aed', size: 1.6,
+    // Fires collapsing black holes that SUCK enemies in and crush them.
+    attack: { mode: 'blackhole', dtype: 'energy', range: 3.6 * TILE, damage: 0, fireRate: 0.5, well: { life: 2.4, radius: 78, dps: 75, pull: 150 } },
+    passive: { radius: 0, damageMult: 1.12, fireMult: 1.08 },
+    skill: { name: 'Event Horizon', cooldown: 55, desc: 'A giant singularity pulls & crushes ALL enemies for 4s.', effect: { type: 'blackhole_all', dps: 130, dur: 4 } },
+  },
+  prisma: {
+    name: 'Prisma', rarity: 'ultimate', sprite: 'hero_prism', color: '#22d3ee', size: 1.6,
+    // A constantly ROTATING death-ray that shreds anything it sweeps across.
+    attack: { mode: 'sweep', dtype: 'energy', range: 3.2 * TILE, damage: 110, fireRate: 1, rot: 2.6, width: 15 },
+    passive: { radius: 0, fireMult: 1.15 },
+    skill: { name: 'Supernova', cooldown: 48, desc: '700 damage to ALL + blinding flash.', effect: { type: 'orbital', amount: 700, dur: 1.5 } },
+  },
+  warden: {
+    name: 'Kael', rarity: 'ultimate', sprite: 'hero_chakram', color: '#f59e0b', size: 1.6,
+    // Hurls a spinning blade that flies out and RETURNS, cutting twice.
+    attack: { mode: 'boomerang', dtype: 'kinetic', range: 4 * TILE, damage: 85, fireRate: 0.9, projSpeed: 520 },
+    passive: { radius: 0, damageMult: 1.15 },
+    skill: { name: 'Blade Cyclone', cooldown: 38, desc: '450 kinetic damage to ALL enemies.', effect: { type: 'damage_all', amount: 450, dtype: 'kinetic' } },
+  },
+  reaper: {
+    name: 'Mortis', rarity: 'ultimate', sprite: 'hero_reaper', color: '#16a34a', size: 1.6,
+    // Toxic scythe that also REAPS a % of the target's max HP — melts bosses.
+    attack: { mode: 'projectile', dtype: 'toxic', range: 3.4 * TILE, damage: 55, fireRate: 1.6, projSpeed: 520, execute: 0.08 },
+    passive: { radius: 0, damageMult: 1.1 },
+    skill: { name: 'Harvest', cooldown: 45, desc: 'Reap 15% of every enemy’s max HP at once.', effect: { type: 'reap_all', pct: 0.15 } },
+  },
+  hive: {
+    name: 'Vespa', rarity: 'ultimate', sprite: 'hero_hive', color: '#eab308', size: 1.6,
+    // Looses a SWARM of 7 homing fire-drones every volley.
+    attack: { mode: 'projectile', dtype: 'fire', range: 3.4 * TILE, damage: 26, fireRate: 1.5, projSpeed: 520, multishot: 7, dot: { dps: 12, dur: 2.5 }, splash: 20 },
+    passive: { radius: 0, damageMult: 1.08, fireMult: 1.08 },
+    skill: { name: 'Nanoplague', cooldown: 40, desc: 'Infect ALL enemies: 40 dps for 6s + slow.', effect: { type: 'plague_all', dps: 40, dur: 6, factor: 0.4 } },
+  },
 
   // ---- Normal ----
   rifleman: {

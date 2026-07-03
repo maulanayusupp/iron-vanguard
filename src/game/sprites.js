@@ -845,10 +845,53 @@ function h_overlord(ctx, r, c, ac, a) {
   ctx.fillStyle = ac; ctx.beginPath(); ctx.arc(r * 0.46, -r * 0.08, r * 0.05, 0, TAU); ctx.fill(); ctx.beginPath(); ctx.arc(r * 0.46, r * 0.08, r * 0.05, 0, TAU); ctx.fill()
 }
 
+function h_void(ctx, r, c, ac, a) {
+  hmage(ctx, r, c, '#c4b5fd'); const s = a ? a.spin : 0, ox = r * 0.95
+  const g = ctx.createRadialGradient(ox, 0, 1, ox, 0, r * 0.4); g.addColorStop(0, '#000'); g.addColorStop(0.6, '#2e1065'); g.addColorStop(1, 'rgba(124,58,237,0)')
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(ox, 0, r * 0.4, 0, TAU); ctx.fill()
+  ctx.strokeStyle = '#a78bfa'; ctx.lineWidth = r * 0.05
+  for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(ox, 0, r * 0.15 + i * r * 0.1, s * 6 + i, s * 6 + i + 3.6); ctx.stroke() }
+}
+function h_prism(ctx, r, c, a2, a) {
+  const s = a ? a.spin : 0
+  ctx.save(); ctx.rotate(s * 0.6)
+  const g = ctx.createLinearGradient(-r * 0.6, -r * 0.6, r * 0.6, r * 0.6); g.addColorStop(0, '#e0f2fe'); g.addColorStop(0.5, c); g.addColorStop(1, shade(c, -25))
+  ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(r * 0.72, 0); ctx.lineTo(0, -r * 0.62); ctx.lineTo(-r * 0.72, 0); ctx.lineTo(0, r * 0.62); ctx.closePath(); ctx.fill()
+  ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = r * 0.04
+  ctx.beginPath(); ctx.moveTo(r * 0.72, 0); ctx.lineTo(-r * 0.72, 0); ctx.moveTo(0, -r * 0.62); ctx.lineTo(0, r * 0.62); ctx.stroke()
+  ctx.restore()
+  const glow = 0.6 + 0.4 * Math.sin(s * 8); ctx.globalAlpha = glow; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(0, 0, r * 0.18, 0, TAU); ctx.fill(); ctx.globalAlpha = 1
+}
+function h_chakram(ctx, r, c, ac, a) {
+  hbody(ctx, r, c, ac, a); const s = a ? a.spin : 0
+  ctx.save(); ctx.translate(r * 0.9, 0); ctx.rotate(s * 10)
+  ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = r * 0.1; ctx.beginPath(); ctx.arc(0, 0, r * 0.32, 0, TAU); ctx.stroke()
+  ctx.fillStyle = ac; for (let i = 0; i < 4; i++) { ctx.save(); ctx.rotate(i / 4 * TAU); ctx.beginPath(); ctx.moveTo(0, -r * 0.08); ctx.lineTo(r * 0.46, 0); ctx.lineTo(0, r * 0.08); ctx.closePath(); ctx.fill(); ctx.restore() }
+  ctx.restore()
+}
+function h_reaper(ctx, r, c, ac, a) {
+  hmage(ctx, r, c, '#4ade80')
+  ctx.strokeStyle = '#3f3f46'; ctx.lineWidth = r * 0.08; ctx.beginPath(); ctx.moveTo(r * 0.2, r * 0.45); ctx.lineTo(r * 0.9, -r * 0.5); ctx.stroke()
+  ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = r * 0.11; ctx.beginPath(); ctx.arc(r * 0.9, -r * 0.5, r * 0.42, -0.2, 1.9); ctx.stroke()
+}
+function h_hive(ctx, r, c, ac, a) {
+  const s = a ? a.spin : 0, flap = 0.6 + 0.4 * Math.abs(Math.sin(s * 20))
+  ctx.fillStyle = 'rgba(226,232,240,0.3)'
+  ctx.beginPath(); ctx.ellipse(-r * 0.1, -r * 0.55 * flap, r * 0.5, r * 0.24, -0.5, 0, TAU); ctx.fill()
+  ctx.beginPath(); ctx.ellipse(-r * 0.1, r * 0.55 * flap, r * 0.5, r * 0.24, 0.5, 0, TAU); ctx.fill()
+  const g = ctx.createLinearGradient(0, -r * 0.5, 0, r * 0.5); g.addColorStop(0, shade(c, 20)); g.addColorStop(1, shade(c, -25))
+  ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(-r * 0.2, 0, r * 0.6, r * 0.36, 0, 0, TAU); ctx.fill()
+  ctx.fillStyle = '#1c1917'; for (let i = 0; i < 3; i++) ctx.fillRect(-r * 0.5 + i * r * 0.28, -r * 0.34, r * 0.1, r * 0.68)
+  ctx.fillStyle = shade(c, -10); ctx.beginPath(); ctx.arc(r * 0.42, 0, r * 0.28, 0, TAU); ctx.fill()
+  ctx.fillStyle = ac; ctx.beginPath(); ctx.arc(r * 0.5, -r * 0.08, r * 0.06, 0, TAU); ctx.fill(); ctx.beginPath(); ctx.arc(r * 0.5, r * 0.08, r * 0.06, 0, TAU); ctx.fill()
+  ctx.fillStyle = ac; for (let i = 0; i < 3; i++) { const an = s * 3 + i / 3 * TAU; ctx.beginPath(); ctx.arc(Math.cos(an) * r * 0.95, Math.sin(an) * r * 0.95, r * 0.1, 0, TAU); ctx.fill() }
+}
+
 const HERO_ROUTINES = {
   rifleman: h_rifle, sharpshooter: h_sniper, grenadier: h_grenade, engineer: h_engineer,
   bombardier: h_bombardier, pyromancer: h_pyro, frostqueen: h_frost, stormcaller: h_storm,
   chronos: h_chronos, warlord: h_warlord, phoenix: h_phoenix, titanhero: h_titan, overlord: h_overlord,
+  singularity: h_void, prisma: h_prism, warden: h_chakram, reaper: h_reaper, hive: h_hive,
 }
 
 export function drawHero(ctx, h, def, rarityColor, spin) {

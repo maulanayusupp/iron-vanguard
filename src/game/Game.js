@@ -34,6 +34,7 @@ export class Game {
     this.enemies = []
     this.projectiles = []
     this.enemyShots = []
+    this.wells = []
     this.beams = []
     this.particles = []
     this.heroes = []
@@ -315,6 +316,7 @@ export class Game {
     for (const h of this.heroes) this._updateHero(h, dt)
     for (const p of this.projectiles) this._updateProjectile(p, dt)
     for (const s of this.enemyShots) this._updateEnemyShot(s, dt)
+    if (this.wells.length) this._updateWells(dt)
     this._updateParticles(dt)
 
     if (this.beams.length) { for (const b of this.beams) b.life -= dt; this.beams = this.beams.filter((b) => b.life > 0) }
@@ -323,6 +325,7 @@ export class Game {
     this.enemies = this.enemies.filter((e) => !e.dead)
     this.projectiles = this.projectiles.filter((p) => !p.dead)
     this.enemyShots = this.enemyShots.filter((s) => !s.dead)
+    if (this.wells.length) this.wells = this.wells.filter((w) => w.life > 0)
 
     if (this.waveActive && !this.spawnQueue.length && !this.enemies.length) {
       this.waveActive = false; this.state.waveActive = false; this.state.wave += 1
@@ -447,6 +450,7 @@ export class Game {
       mode: a.mode, dtype: a.dtype, range: a.range, minRange: 0, damage: a.damage, fireRate: a.fireRate,
       projSpeed: a.projSpeed, splash: a.splash || 0, slow: a.slow || null, dot: a.dot || null,
       chain: a.chain || null, ramp: 0, groundOnly: false, color: HEROES[h.key].color, pitch: this._pitch(a.damage),
+      multishot: a.multishot || 0, execute: a.execute || 0, well: a.well || null, rot: a.rot || 0, width: a.width || 16, pierce: false,
     }
   }
 
@@ -531,13 +535,66 @@ export class Game {
   _updateHero(h, dt) {
     if (h.recoil > 0) h.recoil = Math.max(0, h.recoil - dt * 7)
     if (h.cooldown > 0) { h.cooldown = Math.max(0, h.cooldown - dt); this._updateHeroCooldownUi() }
-    h.atkCooldown -= dt
     const stats = this._heroStats(h)
+    if (stats.mode === 'sweep') { this._heroSweep(h, stats, dt); return } // continuous rotating beam
+    h.atkCooldown -= dt
     const target = this._acquire(h, stats)
     h.target = target
     if (!target) { h.lockTarget = null; h.lockTime = 0; return }
     h.angle = Math.atan2(target.y - h.y, target.x - h.x)
-    if (h.atkCooldown <= 0) { h.atkCooldown = 1 / stats.fireRate; this._fire(h, stats, target) }
+    if (h.atkCooldown > 0) return
+    h.atkCooldown = 1 / stats.fireRate
+    h.recoil = 1
+    if (stats.mode === 'blackhole') this._spawnWell(target, stats)
+    else if (stats.mode === 'boomerang') this._spawnBoomerang(h, stats, target)
+    else this._fire(h, stats, target)
+  }
+
+  _heroSweep(h, stats, dt) {
+    h.beamAngle = (h.beamAngle || 0) + stats.rot * dt
+    h.angle = h.beamAngle
+    const dx = Math.cos(h.beamAngle), dy = Math.sin(h.beamAngle)
+    for (const e of this.enemies) {
+      if (e.dead) continue
+      const rx = e.x - h.x, ry = e.y - h.y
+      const proj = rx * dx + ry * dy
+      if (proj < 0 || proj > stats.range) continue
+      if (Math.abs(rx * dy - ry * dx) <= stats.width + e.radius) {
+        this._damage(e, stats.damage * dt, stats.dtype)
+        if (rand() < 0.25) this._spark(e.x, e.y, stats.color, 1)
+      }
+    }
+  }
+
+  _spawnWell(pos, stats) {
+    const w = stats.well
+    this.wells.push({ x: pos.x, y: pos.y, life: w.life, max: w.life, radius: w.radius, dps: w.dps, pull: w.pull, color: stats.color })
+    this._shock(pos.x, pos.y, w.radius, stats.color)
+    audioService.shoot(stats.pitch)
+  }
+
+  _spawnBoomerang(h, stats, target) {
+    const ang = Math.atan2(target.y - h.y, target.x - h.x)
+    this._muzzle(h.x + Math.cos(ang) * 22, h.y + Math.sin(ang) * 22, ang, stats.color)
+    audioService.shoot(stats.pitch)
+    this.projectiles.push({
+      boomerang: true, kind: 'chakram', x: h.x, y: h.y, ox: h.x, oy: h.y,
+      dirX: Math.cos(ang), dirY: Math.sin(ang), range: stats.range, dist: 0, phase: 'out',
+      speed: stats.projSpeed, damage: stats.damage, dtype: stats.dtype, color: stats.color,
+      angle: 0, hit: new Set(), trail: [], dead: false,
+    })
+  }
+
+  _updateBoomerang(p, dt) {
+    const step = p.speed * dt
+    if (p.phase === 'out') { p.x += p.dirX * step; p.y += p.dirY * step; p.dist += step; if (p.dist >= p.range) { p.phase = 'back'; p.hit.clear() } }
+    else { const dx = p.ox - p.x, dy = p.oy - p.y, d = Math.hypot(dx, dy); if (d <= step) p.dead = true; else { p.x += (dx / d) * step; p.y += (dy / d) * step } }
+    p.angle += 16 * dt
+    p.trail.push({ x: p.x, y: p.y }); if (p.trail.length > 6) p.trail.shift()
+    for (const e of this.enemies) {
+      if (e.dead || p.hit.has(e)) continue
+      if (Math.hypot(e.x - p.x, e.y - p.y) <= e.radius + 12) { this._damage(e, p.damage, p.dtype); this._spark(e.x, e.y, p.color, 4); p.hit.add(e) }
+    }
   }
 
   _fire(unit, stats, target) {
@@ -552,7 +609,7 @@ export class Game {
         this.projectiles.push({
           x: bx, y: by, px: bx, py: by, angle: Math.atan2(tg.y - by, tg.x - bx), kind: PROJ_KIND[stats.dtype] || 'bullet',
           target: tg, speed: stats.projSpeed, damage: stats.damage, dtype: stats.dtype,
-          splash: stats.splash, slow: stats.slow, dot: stats.dot, color: stats.color, trail: [], dead: false,
+          splash: stats.splash, slow: stats.slow, dot: stats.dot, execute: stats.execute, color: stats.color, trail: [], dead: false,
         })
       }
     } else if (stats.pierce) {
@@ -605,6 +662,7 @@ export class Game {
   }
 
   _updateProjectile(p, dt) {
+    if (p.boomerang) { this._updateBoomerang(p, dt); return }
     const e = p.target
     if (!e || e.dead || e.reached) { p.dead = true; return }
     p.px = p.x; p.py = p.y
@@ -613,6 +671,7 @@ export class Game {
     const move = p.speed * dt
     if (d <= move + e.radius) {
       this._damage(e, p.damage, p.dtype)
+      if (p.execute) this._damage(e, e.maxHp * p.execute, 'true') // reaper: % max HP
       if (p.slow) { e.slowTimer = p.slow.dur; e.slowFactor = p.slow.factor }
       if (p.dot) { e.dotDps = p.dot.dps; e.dotTimer = p.dot.dur; e.dotType = p.dtype }
       if (p.splash) this._applySplash(e, p.damage * 0.5, p)
@@ -641,6 +700,21 @@ export class Game {
       }
       s.dead = true
     } else { s.x += (dx / d) * move; s.y += (dy / d) * move }
+  }
+
+  // Gravity wells (Nyx): pull enemies inward and crush them.
+  _updateWells(dt) {
+    for (const w of this.wells) {
+      w.life -= dt
+      for (const e of this.enemies) {
+        if (e.dead) continue
+        const dx = w.x - e.x, dy = w.y - e.y, d = Math.hypot(dx, dy)
+        if (d <= w.radius) {
+          this._damage(e, w.dps * dt, 'energy')
+          if (d > 4) { const pull = Math.min(d, w.pull * dt); e.x += (dx / d) * pull; e.y += (dy / d) * pull }
+        }
+      }
+    }
   }
 
   // dtype: DAMAGE_TYPES key or 'true' to bypass resist/armor.
@@ -786,6 +860,20 @@ export class Game {
           for (const e of this.enemies) if (Math.hypot(e.x - c.x, e.y - c.y) <= ef.radius) this._damage(e, ef.amount, 'explosive')
         }
         audioService.explosion(); this._flash('rgba(249,115,22,0.2)'); break
+      case 'damage_all':
+        for (const e of this.enemies) this._damage(e, ef.amount, ef.dtype || 'kinetic')
+        for (const e of this._leaders(8)) this._spark(e.x, e.y, '#e2e8f0', 6)
+        this._flash('rgba(226,232,240,0.14)'); break
+      case 'blackhole_all':
+        this.wells.push({ x: WIDTH / 2, y: HEIGHT / 2, life: ef.dur, max: ef.dur, radius: Math.max(WIDTH, HEIGHT), dps: ef.dps, pull: 140, color: '#a78bfa' })
+        this._flash('rgba(124,58,237,0.28)'); this._shock(WIDTH / 2, HEIGHT / 2, WIDTH * 0.5, '#a78bfa'); break
+      case 'reap_all':
+        for (const e of this.enemies) this._damage(e, e.maxHp * ef.pct, 'true')
+        for (const e of this._leaders(10)) this._explosion(e.x, e.y, 32, '#22c55e')
+        this._flash('rgba(22,163,74,0.22)'); break
+      case 'plague_all':
+        for (const e of this.enemies) { e.dotDps = ef.dps; e.dotTimer = ef.dur; e.dotType = 'toxic'; e.slowTimer = ef.dur; e.slowFactor = ef.factor }
+        this._flash('rgba(234,179,8,0.18)'); break
     }
   }
 
@@ -866,13 +954,44 @@ export class Game {
 
     for (const e of this.enemies) if (e.siegeTarget) { ctx.strokeStyle = 'rgba(239,68,68,0.6)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(e.siegeTarget.x, e.siegeTarget.y); ctx.stroke() }
 
+    if (this.wells.length) this._renderWells(ctx)
     for (const h of this.heroes) drawHero(ctx, h, HEROES[h.key], RARITY[HEROES[h.key].rarity].color, this.spin)
     for (const t of this.turrets) this._renderTower(ctx, t)
     for (const e of this.enemies) this._renderEnemy(ctx, e)
     this._renderProjectiles(ctx)
     this._renderEnemyShots(ctx)
+    this._renderSweeps(ctx)
     this._renderBeams(ctx)
     this._renderParticles(ctx)
+  }
+
+  _renderWells(ctx) {
+    for (const w of this.wells) {
+      const a = Math.max(0, w.life / w.max)
+      const g = ctx.createRadialGradient(w.x, w.y, 1, w.x, w.y, w.radius)
+      g.addColorStop(0, 'rgba(0,0,0,0.85)'); g.addColorStop(0.55, 'rgba(30,20,60,0.5)'); g.addColorStop(1, 'rgba(124,58,237,0)')
+      ctx.globalAlpha = Math.min(1, a + 0.2); ctx.fillStyle = g
+      ctx.beginPath(); ctx.arc(w.x, w.y, w.radius, 0, TAU); ctx.fill()
+      // swirling ring
+      ctx.strokeStyle = w.color; ctx.globalAlpha = a * 0.8; ctx.lineWidth = 3
+      const sp = this.spin * 8
+      for (let i = 0; i < 3; i++) { const rr2 = w.radius * (0.3 + i * 0.22); ctx.beginPath(); ctx.arc(w.x, w.y, rr2, sp + i, sp + i + 4); ctx.stroke() }
+      ctx.globalAlpha = 1
+    }
+  }
+
+  _renderSweeps(ctx) {
+    for (const h of this.heroes) {
+      const a = HEROES[h.key].attack
+      if (a.mode !== 'sweep' || h.beamAngle == null) continue
+      const ex = h.x + Math.cos(h.beamAngle) * a.range, ey = h.y + Math.sin(h.beamAngle) * a.range
+      ctx.strokeStyle = a.dtype === 'energy' ? '#22d3ee' : HEROES[h.key].color
+      ctx.globalAlpha = 0.25; ctx.lineWidth = (a.width || 15) * 1.6; ctx.lineCap = 'round'
+      ctx.beginPath(); ctx.moveTo(h.x, h.y); ctx.lineTo(ex, ey); ctx.stroke()
+      ctx.globalAlpha = 0.95; ctx.lineWidth = 3; ctx.strokeStyle = '#fff'
+      ctx.beginPath(); ctx.moveTo(h.x, h.y); ctx.lineTo(ex, ey); ctx.stroke()
+      ctx.globalAlpha = 1
+    }
   }
 
   _renderEnemyShots(ctx) {
@@ -965,6 +1084,12 @@ export class Game {
         case 'glob': {
           const g = ctx.createRadialGradient(-1, -1, 1, 0, 0, 6); g.addColorStop(0, '#d9f99d'); g.addColorStop(1, p.color)
           ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, 5.5, 0, TAU); ctx.fill(); break
+        }
+        case 'chakram': {
+          ctx.strokeStyle = p.color; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, 9, 0, TAU); ctx.stroke()
+          ctx.fillStyle = '#e2e8f0'
+          for (let i = 0; i < 4; i++) { ctx.save(); ctx.rotate(i / 4 * TAU); ctx.beginPath(); ctx.moveTo(0, -3); ctx.lineTo(13, 0); ctx.lineTo(0, 3); ctx.closePath(); ctx.fill(); ctx.restore() }
+          ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(0, 0, 3, 0, TAU); ctx.fill(); break
         }
         default: { // bullet
           ctx.fillStyle = '#fffbeb'; ctx.fillRect(-6, -1.5, 12, 3)
