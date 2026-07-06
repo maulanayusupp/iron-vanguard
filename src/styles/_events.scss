@@ -1,0 +1,73 @@
+@use 'variables' as *;
+
+// active random-event badge (top-left of the battlefield)
+.event-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 12px 7px 9px;
+  border-radius: 12px;
+  background: rgba(11, 17, 32, 0.85);
+  backdrop-filter: blur(3px);
+  border: 1px solid var(--c);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--c) 45%, transparent);
+  z-index: 5;
+  animation: event-in 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+
+  &__icon { font-size: 20px; }
+  &__body { display: flex; flex-direction: column; gap: 3px; }
+  b { font-size: 13px; font-weight: 800; color: var(--c); letter-spacing: 0.3px; }
+
+  &__bar {
+    width: 96px; height: 4px; border-radius: 3px;
+    background: rgba(148, 163, 184, 0.2); overflow: hidden;
+    i { display: block; height: 100%; background: var(--c); transition: width 0.1s linear; }
+  }
+}
+
+@keyframes event-in {
+  from { opacity: 0; transform: translateX(-16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+// OVERDRIVE fever bar (bottom-centre)
+.overdrive {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  z-index: 5;
+  pointer-events: none;
+  animation: od-flash 0.6s ease-in-out infinite alternate;
+
+  &__label {
+    font-weight: 900;
+    font-size: 13px;
+    letter-spacing: 1px;
+    color: #fde047;
+    text-shadow: 0 0 12px rgba(251, 191, 36, 0.8);
+  }
+  &__bar {
+    width: 180px; height: 6px; border-radius: 4px;
+    background: rgba(11, 17, 32, 0.7);
+    border: 1px solid rgba(251, 191, 36, 0.6);
+    overflow: hidden;
+    i { display: block; height: 100%; background: linear-gradient(90deg, #f59e0b, #fde047); transition: width 0.1s linear; }
+  }
+}
+
+@keyframes od-flash {
+  from { filter: drop-shadow(0 0 4px rgba(251, 191, 36, 0.4)); }
+  to { filter: drop-shadow(0 0 12px rgba(251, 191, 36, 0.9)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .event-badge, .overdrive { animation: none; }
+}

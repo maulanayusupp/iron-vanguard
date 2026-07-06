@@ -78,6 +78,19 @@ onUnmounted(destroy)
           <span class="announce__text" v-accent="state.announce.color">{{ state.announce.text }}</span>
         </div>
 
+        <div v-if="state.event" class="event-badge" :class="{ bad: state.event.bad }" v-accent="state.event.color">
+          <span class="event-badge__icon">{{ state.event.icon }}</span>
+          <span class="event-badge__body">
+            <b>{{ state.event.name }}</b>
+            <span class="event-badge__bar"><i :style="{ width: (state.event.timeLeft / state.event.dur * 100) + '%' }"></i></span>
+          </span>
+        </div>
+
+        <div v-if="state.odActive" class="overdrive">
+          <span class="overdrive__label">⚡ OVERDRIVE ×2</span>
+          <span class="overdrive__bar"><i :style="{ width: state.overdrive * 100 + '%' }"></i></span>
+        </div>
+
         <DraftOverlay v-if="state.drafting" :choices="state.draftChoices" @pick="chooseModifier" />
 
         <div class="hud-top">

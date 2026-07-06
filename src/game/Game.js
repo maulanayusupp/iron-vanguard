@@ -4,6 +4,7 @@ import { ENEMIES } from './config/enemies.js'
 import { HEROES, HERO_SLOTS, ULTIMATE_SLOTS, RARITY, isUltimate } from './config/heroes.js'
 import { DAMAGE_TYPES } from './config/damage.js'
 import { MODIFIERS, draftModifiers } from './config/modifiers.js'
+import { EVENTS, rollEvent } from './config/events.js'
 import { drawEnemy, drawTower, drawHero } from './sprites.js'
 import { pointerToCanvas } from '../helpers/canvas.js'
 import { audioService } from '../services/audio.service.js'
@@ -58,6 +59,10 @@ export class Game {
     this.baseInvulnTimer = 0
     this._annId = 0         // kill-streak announcement id
     this._annTier = -1
+    this.event = null       // active random event { def, timeLeft, mods }
+    this.eventCd = 14 + rand() * 8
+    this.overdrive = 0      // fever-mode timer (seconds)
+    this._odId = 0
     this.mod = { hp: 1, spd: 1, reward: 1, towerCost: 1, towerDmg: 1, towerFire: 1 }
 
     this.build = null
@@ -85,6 +90,9 @@ export class Game {
     s.combo = 0
     s.comboMult = 1
     s.announce = { id: 0, text: '', color: '#e2e8f0' }
+    s.event = null          // { name, icon, color, timeLeft, dur, bad }
+    s.overdrive = 0         // 0..1 remaining fraction (for UI bar)
+    s.odActive = false
     s.modName = ''
     s.allowed = level.allowed || null
     s.heroesLocked = level.mode === 'puzzle'
@@ -289,7 +297,7 @@ export class Game {
   _spawn(type, opts = {}) {
     const def = ENEMIES[type]
     let hp = def.hp * this.level.hpMult * this.mod.hp, radius = def.radius, reward = def.reward * this.level.rewardMult * this.mod.reward
-    let speed = def.speed * this.level.spdMult * this.mod.spd, armor = def.armor || 0
+    let speed = def.speed * this.level.spdMult * this.mod.spd * ((this.event && this.event.mods.enemySpeed) || 1), armor = def.armor || 0
     let abilities = def.abilities ? { ...def.abilities } : null
     const champion = !!opts.champion
     const waveBoss = !!opts.waveBoss
@@ -353,6 +361,8 @@ export class Game {
     if (this.comboTimer > 0) { this.comboTimer -= dt; if (this.comboTimer <= 0) { this.combo = 0; this._annTier = -1 } }
     this.state.combo = this.combo
     this.state.comboMult = 1 + Math.min(1.5, Math.floor(this.combo / 4) * 0.1)
+    this._updateEvents(dt)
+    this._updateOverdrive(dt)
     if (this.buffs.length) this.buffs = this.buffs.filter((b) => b.expire > this.time)
 
     if (this.waveActive) {
@@ -510,6 +520,8 @@ export class Game {
     dmg *= this.mod.towerDmg; fire *= this.mod.towerFire
     if (t.fused) { dmg *= 1.3; fire *= 1.15; range *= 1.1 } // fusion bonus on top of Lv5 stats
     if (t.vet) dmg *= 1 + t.vet * 0.08 // veterancy bonus
+    if (this.event) { const m = this.event.mods; dmg *= m.towerDmg || 1; fire *= m.towerFire || 1; range *= m.towerRange || 1 }
+    if (this.overdrive > 0) dmg *= 2 // OVERDRIVE fever
     const damage = damageAtLevel(def.damage || 0, t.level) * dmg
     return {
       mode: def.mode, dtype: def.dtype, range: rangeAtLevel(def.range || 0, t.level) * range, minRange: def.minRange || 0,
@@ -674,6 +686,57 @@ export class Game {
     }
   }
 
+  // ---- random mid-wave events ----
+  _updateEvents(dt) {
+    if (this.event) {
+      this.event.timeLeft -= dt
+      this.state.event.timeLeft = this.event.timeLeft
+      if (this.event.timeLeft <= 0) { this.event = null; this.state.event = null }
+    }
+    // only during a live wave, and not stacking
+    if (this.waveActive && !this.event) {
+      this.eventCd -= dt
+      if (this.eventCd <= 0) { this.eventCd = 16 + rand() * 10; this._triggerEvent(rollEvent()) }
+    }
+  }
+
+  _triggerEvent(def) {
+    audioService.skill()
+    this._flash(def.bad ? 'rgba(239,68,68,0.14)' : 'rgba(34,211,238,0.14)')
+    this._text(WIDTH / 2, HEIGHT / 2 - 30, def.icon + ' ' + def.name.toUpperCase(), def.color, true)
+    if (def.instant) {
+      if (def.instantMoney) { this.state.money += def.instantMoney; this._text(this.basePt.x, this.basePt.y - 20, '+💰' + def.instantMoney, '#facc15') }
+      if (def.spawnBurst) {
+        const pool = this.level.waves[Math.min(this.state.wave, this.level.waves.length - 1)] || []
+        const type = (pool[0] && pool[0].type) || 'infantry'
+        for (let i = 0; i < def.spawnBurst.count; i++) this.spawnQueue.push({ type, time: this.waveTimer + i * 0.35, pathIndex: i % this.pathsPx.length })
+      }
+      return
+    }
+    this.event = { def, timeLeft: def.dur, mods: def.mods || {} }
+    this.state.event = { name: def.name, icon: def.icon, color: def.color, timeLeft: def.dur, dur: def.dur, bad: def.bad }
+  }
+
+  // ---- overdrive / fever mode ----
+  _updateOverdrive(dt) {
+    if (this.overdrive > 0) {
+      this.overdrive = Math.max(0, this.overdrive - dt)
+      this.state.overdrive = this.overdrive / 6
+      if (this.overdrive <= 0) this.state.odActive = false
+    }
+  }
+
+  _triggerOverdrive() {
+    if (this.overdrive > 0) { this.overdrive = 6; return } // refresh
+    this.overdrive = 6
+    this.state.odActive = true
+    this.state.overdrive = 1
+    this._odId++
+    this._flash('rgba(251,191,36,0.2)'); this.shake = Math.max(this.shake, 8)
+    this.state.announce = { id: ++this._annId, text: 'OVERDRIVE!', color: '#fbbf24' }
+    audioService.combo()
+  }
+
   _checkAnnounce() {
     const TIERS = [
       [3, 'TRIPLE KILL', '#22d3ee'], [5, 'RAMPAGE', '#a78bfa'], [8, 'KILLING SPREE', '#f59e0b'],
@@ -686,6 +749,8 @@ export class Game {
       this.state.announce = { id: ++this._annId, text: TIERS[ti][1], color: TIERS[ti][2] }
       audioService.combo(); this.shake = Math.max(this.shake, 7); this._flash('rgba(255,255,255,0.12)')
     }
+    // hitting a 10-combo ignites OVERDRIVE (fever mode): +100% dmg for 6s
+    if (this.combo === 10) this._triggerOverdrive()
   }
 
   _gainXp(t) {
@@ -874,7 +939,8 @@ export class Game {
       // combo: fast successive kills pay escalating gold
       this.combo++; this.comboTimer = 2.5
       const cmult = 1 + Math.min(1.5, Math.floor(this.combo / 4) * 0.1)
-      this.state.money += Math.round(e.reward * cmult)
+      const emult = (this.event && this.event.mods && this.event.mods.reward) || 1
+      this.state.money += Math.round(e.reward * cmult * emult)
       this._checkAnnounce()
       this._debris(e.x, e.y, e.color)
       if (e.champion) { this._explosion(e.x, e.y, e.radius * 1.6, '#fbbf24'); this._text(e.x, e.y, '+$' + Math.round(e.reward * cmult), '#fbbf24') }
@@ -1161,6 +1227,11 @@ export class Game {
     this._renderSweeps(ctx)
     this._renderBeams(ctx)
     this._renderParticles(ctx)
+    if (this.overdrive > 0) {
+      const g = ctx.createRadialGradient(WIDTH / 2, HEIGHT / 2, HEIGHT * 0.3, WIDTH / 2, HEIGHT / 2, HEIGHT * 0.72)
+      g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(251,191,36,${0.12 + 0.06 * Math.sin(this.spin * 10)})`)
+      ctx.fillStyle = g; ctx.fillRect(0, 0, WIDTH, HEIGHT)
+    }
     ctx.restore()
   }
 
