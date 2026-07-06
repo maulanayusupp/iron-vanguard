@@ -13,6 +13,7 @@ const props = defineProps({
   totalWaves: { type: Number, required: true },
   maxLevel: { type: Number, required: true },
   mode: { type: String, default: '' },
+  coins: { type: Number, default: 0 },
 })
 defineEmits(['next', 'retry', 'menu'])
 
@@ -42,6 +43,8 @@ const best = props.mode ? storageService.getBest(props.mode) : 0
         <p v-if="status === 'won'">{{ t('result.cleared', { n: level, k: kills }) }}</p>
         <p v-else class="muted">{{ t('result.held', { w: wave, t: totalWaves }) }}</p>
       </template>
+
+      <p v-if="coins" class="overlay__coins">🪙 +{{ coins }} coins earned</p>
 
       <div class="overlay__actions">
         <AppButton v-if="!mode && status === 'won' && level < maxLevel" variant="primary" @click="$emit('next')">{{ t('result.next') }}</AppButton>

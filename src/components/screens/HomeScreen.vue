@@ -6,11 +6,13 @@ import { levelService } from '../../services/level.service.js'
 import { AmbientScene } from '../../game/ambient.js'
 import { APP_NAME_LEAD, APP_NAME_ACCENT, APP_TAGLINE } from '../../constants/app.js'
 import { useSettings } from '../../composables/useSettings.js'
+import { useBarracks } from '../../composables/useBarracks.js'
 import { t } from '../../i18n/index.js'
 
 const { reduceMotion } = useSettings()
+const { coins } = useBarracks()
 const { progress, totalStars } = useProgress()
-const emit = defineEmits(['continue', 'select', 'restart', 'endless', 'bossrush', 'puzzles', 'bestiary', 'settings'])
+const emit = defineEmits(['continue', 'select', 'restart', 'endless', 'bossrush', 'puzzles', 'barracks', 'bestiary', 'settings'])
 
 const maxLevel = levelService.MAX_LEVEL
 const chapters = levelService.chapterCount
@@ -52,7 +54,7 @@ onUnmounted(() => { if (scene) scene.stop() })
       <div class="home__stats">
         <div class="chip"><b>Lv {{ progress }}</b><small>{{ t('chip.progress') }}</small></div>
         <div class="chip"><b>⭐ {{ totalStars }}</b><small>{{ t('chip.stars') }}</small></div>
-        <div class="chip"><b>{{ chapters }}</b><small>{{ t('chip.chapters') }}</small></div>
+        <div class="chip"><b>🪙 {{ coins }}</b><small>{{ t('chip.coins') }}</small></div>
       </div>
 
       <div class="home__actions">
@@ -66,6 +68,7 @@ onUnmounted(() => { if (scene) scene.stop() })
           <AppButton @click="emit('bossrush')">{{ t('home.bossrush') }}</AppButton>
           <AppButton @click="emit('puzzles')">{{ t('home.puzzles') }}</AppButton>
         </div>
+        <AppButton variant="big" @click="emit('barracks')">{{ t('home.barracks') }}</AppButton>
         <div class="home__row">
           <AppButton @click="emit('bestiary')">{{ t('home.bestiary') }}</AppButton>
           <AppButton @click="emit('settings')">{{ t('home.settings') }}</AppButton>

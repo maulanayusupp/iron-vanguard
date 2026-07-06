@@ -5,6 +5,7 @@ import LevelSelect from './components/screens/LevelSelect.vue'
 import GameScreen from './components/screens/GameScreen.vue'
 import BestiaryScreen from './components/screens/BestiaryScreen.vue'
 import PuzzleScreen from './components/screens/PuzzleScreen.vue'
+import BarracksScreen from './components/screens/BarracksScreen.vue'
 import SettingsModal from './components/game/SettingsModal.vue'
 import { levelService } from './services/level.service.js'
 
@@ -38,6 +39,7 @@ onMounted(() => {
     @endless="play(1, 'endless')"
     @bossrush="play(1, 'bossrush')"
     @puzzles="screen = 'puzzles'"
+    @barracks="screen = 'barracks'"
     @bestiary="screen = 'bestiary'"
     @settings="showSettings = true"
   />
@@ -45,6 +47,7 @@ onMounted(() => {
   <LevelSelect v-else-if="screen === 'select'" @back="screen = 'home'" @play="play" />
   <BestiaryScreen v-else-if="screen === 'bestiary'" @back="screen = 'home'" />
   <PuzzleScreen v-else-if="screen === 'puzzles'" @back="screen = 'home'" @play="(id) => play(id, 'puzzle')" />
+  <BarracksScreen v-else-if="screen === 'barracks'" @back="screen = 'home'" />
 
   <GameScreen
     v-else

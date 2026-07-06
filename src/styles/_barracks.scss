@@ -1,0 +1,52 @@
+@use 'variables' as *;
+
+.barracks {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 16px;
+
+  &__head {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;
+    h2 { margin: 0; }
+  }
+  &__coins { font-weight: 800; color: #facc15; font-size: 16px; }
+  &__sub { color: $muted; font-size: 13px; margin: 0 0 16px; }
+  &__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; @media (max-width: $bp-mobile) { grid-template-columns: 1fr; } }
+}
+
+.up-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: linear-gradient(180deg, rgba(28, 42, 66, 0.55), rgba(18, 28, 46, 0.55));
+  border: 1px solid $line;
+  border-radius: 12px;
+  padding: 12px;
+
+  &.maxed { border-color: rgba(34, 197, 94, 0.4); }
+
+  &__icon {
+    flex: 0 0 auto; width: 42px; height: 42px; display: grid; place-items: center;
+    font-size: 22px; border-radius: 10px;
+    background: radial-gradient(circle at 50% 40%, rgba(255,255,255,0.06), rgba(0,0,0,0.25));
+    border: 1px solid rgba(148,163,184,0.14);
+  }
+  &__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+  &__head { display: flex; align-items: center; justify-content: space-between; b { font-size: 14px; } }
+  &__lv { font-size: 12px; color: $muted; font-weight: 700; }
+  &__desc { font-size: 12px; color: $muted; line-height: 1.35; }
+  &__pips { display: flex; gap: 3px; margin-top: 2px;
+    i { width: 100%; height: 4px; border-radius: 2px; background: rgba(148,163,184,0.2); flex: 1;
+      &.on { background: linear-gradient(90deg, #22d3ee, #0891b2); } }
+  }
+  &__buy {
+    flex: 0 0 auto; align-self: stretch; min-width: 74px;
+    border: 1px solid $line; background: $panel-2; color: $muted;
+    border-radius: 10px; padding: 8px 10px; font-weight: 800; cursor: pointer;
+    transition: border-color .12s, color .12s, background .12s;
+    &.ok { color: #0b1120; background: linear-gradient(180deg, #facc15, #eab308); border-color: transparent; }
+    &:disabled { cursor: not-allowed; opacity: 0.6; }
+  }
+}
+
+.overlay__coins { color: #facc15; font-weight: 800; margin: 6px 0 0; }

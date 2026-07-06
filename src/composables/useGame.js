@@ -5,11 +5,19 @@ import { audioService } from '../services/audio.service.js'
 // Encapsulates the engine instance, its reactive HUD state, and every action
 // the UI can trigger. Components stay presentational and call these methods.
 export function useGame() {
+  // NOTE: keep every field the template reads defined here — the game screen
+  // renders BEFORE the engine's reset() runs (reset happens in onMounted), so
+  // any missing field (e.g. announce.text) would crash the first render.
   const state = reactive({
     level: 1, chapter: 1, themeName: '', mapName: '',
     money: 0, baseHp: 0, maxBaseHp: 0, wave: 0, totalWaves: 0, kills: 0,
     status: 'playing', waveActive: false, speed: 1, selectedInfo: null,
-    heroSkills: [], deployed: [],
+    heroSkills: [], deployed: [], stars: 0,
+    combo: 0, comboMult: 1, announce: { id: 0, text: '', color: '#e2e8f0' },
+    drafting: false, modName: '', draftChoices: [],
+    allowed: null, heroesLocked: false,
+    event: null, overdrive: 0, odActive: false,
+    prep: 0, nextWave: null,
   })
   const activeBuild = ref(null) // { kind, key } | null
   const muted = ref(audioService.muted)

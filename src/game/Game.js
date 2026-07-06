@@ -5,6 +5,7 @@ import { HEROES, HERO_SLOTS, ULTIMATE_SLOTS, RARITY, isUltimate } from './config
 import { DAMAGE_TYPES } from './config/damage.js'
 import { MODIFIERS, draftModifiers } from './config/modifiers.js'
 import { EVENTS, rollEvent } from './config/events.js'
+import { barracksEffects } from '../composables/useBarracks.js'
 import { drawEnemy, drawTower, drawHero } from './sprites.js'
 import { pointerToCanvas } from '../helpers/canvas.js'
 import { audioService } from '../services/audio.service.js'
@@ -29,6 +30,7 @@ export class Game {
 
   reset(level) {
     this.level = level
+    this.meta = barracksEffects() // permanent Barracks upgrades
     this.pathsPx = level.map.paths.map((pp) => pp.map((p) => ({ x: p.x * TILE + TILE / 2, y: p.y * TILE + TILE / 2 })))
     this.blocked = this._computeBlocked(level.map.paths)
     this.basePt = this.pathsPx[0][this.pathsPx[0].length - 1] // shared exit
@@ -47,6 +49,8 @@ export class Game {
 
     this.waveActive = false
     this.waveTimer = 0
+    this.waveLeaked = 0     // enemies that reached base this wave (for perfect bonus)
+    this.prepTimer = 0      // auto-start countdown between waves
     this.time = 0
     this.spin = 0
     this.speedMult = 1
@@ -74,9 +78,9 @@ export class Game {
     s.chapter = level.chapter
     s.themeName = level.theme.name
     s.mapName = level.map.name
-    s.money = level.startMoney
-    s.baseHp = level.baseHp
-    s.maxBaseHp = level.baseHp
+    s.money = level.startMoney + this.meta.startGold
+    s.baseHp = level.baseHp + this.meta.baseHp
+    s.maxBaseHp = s.baseHp
     s.wave = 0
     s.totalWaves = level.totalWaves
     s.kills = 0
@@ -90,6 +94,8 @@ export class Game {
     s.combo = 0
     s.comboMult = 1
     s.announce = { id: 0, text: '', color: '#e2e8f0' }
+    s.prep = 0              // auto-start countdown (seconds)
+    s.nextWave = null       // preview of the upcoming wave
     s.event = null          // { name, icon, color, timeLeft, dur, bad }
     s.overdrive = 0         // 0..1 remaining fraction (for UI bar)
     s.odActive = false
@@ -99,6 +105,25 @@ export class Game {
     // puzzles have no roguelite draft (fixed challenge)
     s.drafting = level.mode !== 'puzzle'
     s.draftChoices = s.drafting ? draftModifiers(3) : []
+    this._refreshPreview()
+  }
+
+  // Build a preview of the upcoming wave: enemy types + a boss/air warning.
+  _refreshPreview() {
+    const groups = this.level.waves[this.state.wave]
+    if (!groups) { this.state.nextWave = null; return }
+    const seen = {}
+    let total = 0, boss = false, air = false
+    for (const g of groups) {
+      const def = ENEMIES[g.type]
+      if (!def) continue
+      if (g.waveBoss || def.boss) boss = true
+      else { seen[g.type] = (seen[g.type] || 0) + g.count; total += g.count }
+      if (def.class === 'air') air = true
+    }
+    const types = Object.keys(seen).sort((a, b) => seen[b] - seen[a]).slice(0, 5)
+      .map((k) => ({ key: k, color: ENEMIES[k].color, count: seen[k] }))
+    this.state.nextWave = { types, total, boss, air, index: this.state.wave + 1, totalWaves: this.level.totalWaves }
   }
 
   chooseModifier(id) {
@@ -186,7 +211,7 @@ export class Game {
     const key = this.build.key
     if (!this.canBuild(col, row) || this.heroes.some((h) => h.key === key)) return
     const ult = isUltimate(key)
-    const cap = ult ? ULTIMATE_SLOTS : HERO_SLOTS
+    const cap = (ult ? ULTIMATE_SLOTS : HERO_SLOTS) + (ult ? 0 : this.meta.heroSlot)
     const cur = this.heroes.filter((h) => isUltimate(h.key) === ult).length
     if (cur >= cap) return
     this.heroes.push({
@@ -225,7 +250,7 @@ export class Game {
         strongVs: def.strongVs,
         note: def.mode === 'income' ? `Mints +$${def.income} every ${def.incomeInterval}s`
           : def.mode === 'support' ? `Aura: +${Math.round((def.buff.damageMult - 1) * 100)}% dmg, +${Math.round((def.buff.fireMult - 1) * 100)}% rate` : '',
-        canUpgrade: e.level < TOWER_MAX && hasAtk, upgradeCost: up, canAfford: this.state.money >= up, sellValue: Math.floor(e.invested * 0.6),
+        canUpgrade: e.level < TOWER_MAX && hasAtk, upgradeCost: up, canAfford: this.state.money >= up, sellValue: Math.floor(e.invested * this.meta.sell),
         fused: !!e.fused,
         canFuse: hasAtk && !e.fused && e.level >= TOWER_MAX && this.turrets.some((x) => x !== e && x.key === e.key && x.level >= TOWER_MAX && !x.fused),
         vet: e.vet || 0, vetName: ['', 'Veteran', 'Elite', 'Ace'][e.vet || 0],
@@ -270,7 +295,7 @@ export class Game {
   sellSelected() {
     const e = this.selected
     if (!e) return
-    if (e.kind === 'tower') { this.state.money += Math.floor(e.invested * 0.6); this.turrets = this.turrets.filter((x) => x !== e) }
+    if (e.kind === 'tower') { this.state.money += Math.floor(e.invested * this.meta.sell); this.turrets = this.turrets.filter((x) => x !== e) }
     else { this.heroes = this.heroes.filter((x) => x !== e); this.state.deployed = this.state.deployed.filter((k) => k !== e.key); this._syncHeroSkills() }
     this.selected = null; this.state.selectedInfo = null
   }
@@ -283,6 +308,13 @@ export class Game {
     if (this.waveActive || this.state.status !== 'playing' || this.state.drafting) return
     const groups = this.level.waves[this.state.wave]
     if (!groups) return
+    // early-start bonus: send the wave before the prep countdown ends → gold
+    if (this.prepTimer > 0.2 && this.level.mode !== 'puzzle') {
+      const bonus = Math.round(this.prepTimer * 8)
+      this.state.money += bonus
+      this._text(WIDTH / 2, HEIGHT / 2 + 30, '⏩ EARLY +💰' + bonus, '#fbbf24')
+    }
+    this.prepTimer = 0; this.state.prep = 0; this.waveLeaked = 0
     this.spawnQueue = []
     const lanes = this.pathsPx.length
     groups.forEach((g, gi) => {
@@ -387,7 +419,7 @@ export class Game {
 
     for (const e of this.enemies) this._moveEnemy(e, dt)
     for (const e of this.enemies) this._updateBossSkills(e, dt)
-    for (const e of this.enemies) { if (e.reached && !e.dead) { e.dead = true; if (this.baseInvulnTimer <= 0) this.state.baseHp -= e.damage } }
+    for (const e of this.enemies) { if (e.reached && !e.dead) { e.dead = true; this.waveLeaked++; if (this.baseInvulnTimer <= 0) this.state.baseHp -= e.damage } }
 
     for (const t of this.turrets) this._updateTower(t, dt)
     for (const h of this.heroes) this._updateHero(h, dt)
@@ -411,12 +443,28 @@ export class Game {
         const interest = Math.min(150, Math.floor(this.state.money * 0.08))
         this.state.money += 75 + this.state.wave * 16 + interest
         if (interest > 0) this._text(WIDTH / 2, HEIGHT / 2 + 42, '+💰' + interest + ' interest', '#facc15')
+        // PERFECT WAVE: nothing leaked → bonus gold
+        if (this.waveLeaked === 0) {
+          const bonus = 40 + this.state.wave * 8
+          this.state.money += bonus
+          this._text(WIDTH / 2, HEIGHT / 2 - 30, 'FLAWLESS +💰' + bonus, '#22c55e', true)
+        }
       }
       if (this.state.wave >= this.level.totalWaves) {
         const ratio = this.state.baseHp / this.state.maxBaseHp
         this.state.stars = ratio >= 0.9 ? 3 : ratio >= 0.5 ? 2 : 1
         this.state.status = 'won'; audioService.end(true)
-      } else this._text(WIDTH / 2, HEIGHT / 2, 'WAVE CLEARED', '#22d3ee', true)
+      } else {
+        this._text(WIDTH / 2, HEIGHT / 2, 'WAVE CLEARED', '#22d3ee', true)
+        this._refreshPreview()
+        this.prepTimer = 6 // auto-start countdown; player can send early for a bonus
+      }
+    }
+    // prep countdown between waves → auto-start
+    if (this.prepTimer > 0 && !this.waveActive && this.state.status === 'playing' && !this.state.drafting) {
+      this.prepTimer -= dt
+      this.state.prep = Math.max(0, this.prepTimer)
+      if (this.prepTimer <= 0) this.startWave()
     }
     if (this.state.baseHp <= 0) { this.state.baseHp = 0; this.state.status = 'lost'; audioService.end(false) }
   }
@@ -521,6 +569,7 @@ export class Game {
     if (t.fused) { dmg *= 1.3; fire *= 1.15; range *= 1.1 } // fusion bonus on top of Lv5 stats
     if (t.vet) dmg *= 1 + t.vet * 0.08 // veterancy bonus
     if (this.event) { const m = this.event.mods; dmg *= m.towerDmg || 1; fire *= m.towerFire || 1; range *= m.towerRange || 1 }
+    dmg *= this.meta.towerDmg; fire *= this.meta.towerFire // permanent Barracks bonuses
     if (this.overdrive > 0) dmg *= 2 // OVERDRIVE fever
     const damage = damageAtLevel(def.damage || 0, t.level) * dmg
     return {
@@ -940,7 +989,7 @@ export class Game {
       this.combo++; this.comboTimer = 2.5
       const cmult = 1 + Math.min(1.5, Math.floor(this.combo / 4) * 0.1)
       const emult = (this.event && this.event.mods && this.event.mods.reward) || 1
-      this.state.money += Math.round(e.reward * cmult * emult)
+      this.state.money += Math.round(e.reward * cmult * emult * this.meta.income)
       this._checkAnnounce()
       this._debris(e.x, e.y, e.color)
       if (e.champion) { this._explosion(e.x, e.y, e.radius * 1.6, '#fbbf24'); this._text(e.x, e.y, '+$' + Math.round(e.reward * cmult), '#fbbf24') }
@@ -1013,7 +1062,7 @@ export class Game {
     const def = HEROES[key]
     audioService.skill()
     this._runEffect(h, def.skill.effect)
-    h.cooldown = def.skill.cooldown
+    h.cooldown = def.skill.cooldown * this.meta.cooldown
     this._updateHeroCooldownUi()
   }
 
@@ -1290,7 +1339,7 @@ export class Game {
     const def = isTower ? TOWERS[this.build.key] : HEROES[this.build.key]
     let valid = this.canBuild(col, row)
     if (isTower) valid = valid && this.state.money >= def.cost
-    else { const ult = isUltimate(this.build.key); const cap = ult ? ULTIMATE_SLOTS : HERO_SLOTS; valid = valid && this.heroes.filter((h) => isUltimate(h.key) === ult).length < cap && !this.heroes.some((h) => h.key === this.build.key) }
+    else { const ult = isUltimate(this.build.key); const cap = (ult ? ULTIMATE_SLOTS : HERO_SLOTS) + (ult ? 0 : this.meta.heroSlot); valid = valid && this.heroes.filter((h) => isUltimate(h.key) === ult).length < cap && !this.heroes.some((h) => h.key === this.build.key) }
     const cx = col * TILE + TILE / 2, cy = row * TILE + TILE / 2
     const ring = isTower ? def.range : (def.attack ? def.attack.range : 0)
     if (ring) { ctx.globalAlpha = 0.11; ctx.fillStyle = def.color; ctx.beginPath(); ctx.arc(cx, cy, ring, 0, TAU); ctx.fill(); ctx.globalAlpha = 1 }

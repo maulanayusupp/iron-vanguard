@@ -11,6 +11,8 @@ import { useGame } from '../../composables/useGame.js'
 import { useProgress } from '../../composables/useProgress.js'
 import { levelService } from '../../services/level.service.js'
 import { storageService } from '../../services/storage.service.js'
+import { addCoins } from '../../composables/useBarracks.js'
+import { runCoins } from '../../game/config/barracks.js'
 import { WIDTH, HEIGHT } from '../../game/config/maps.js'
 import { t } from '../../i18n/index.js'
 
@@ -34,6 +36,7 @@ const startLabel = computed(() => {
   if (state.status === 'won') return t('game.victory')
   if (state.status === 'lost') return t('game.defeated')
   if (state.waveActive) return t('game.waveGoing', { n: state.wave + 1 })
+  if (state.prep > 0) return `⏩ ${t('game.sendEarly')} (${Math.ceil(state.prep)}s)`
   return t('game.startWave', { n: Math.min(state.wave + 1, state.totalWaves) })
 })
 
@@ -46,8 +49,12 @@ function levelConfig() {
   return levelService.getConfig(props.level)
 }
 
+const earnedCoins = ref(0)
+
 watch(() => state.status, (s) => {
   if (s === 'playing') return
+  earnedCoins.value = runCoins(state)      // coins every run, win or lose
+  addCoins(earnedCoins.value)
   if (props.mode === 'puzzle') { if (s === 'won') storageService.markPuzzle(props.level); return }
   if (props.mode) { storageService.setBest(props.mode, state.wave); return }
   if (s === 'won') { unlock(props.level + 1); recordStars(props.level, state.stars) }
@@ -101,7 +108,7 @@ onUnmounted(destroy)
         <ResultOverlay
           v-if="state.status !== 'playing'"
           :status="state.status" :level="props.level" :kills="state.kills" :stars="state.stars"
-          :wave="state.wave" :total-waves="state.totalWaves" :max-level="maxLevel" :mode="mode"
+          :wave="state.wave" :total-waves="state.totalWaves" :max-level="maxLevel" :mode="mode" :coins="earnedCoins"
           @next="emit('change-level', state.level + 1)"
           @retry="restart"
           @menu="emit('exit')"
@@ -109,11 +116,23 @@ onUnmounted(destroy)
       </div>
 
       <aside class="panel">
+        <div v-if="state.nextWave && !state.waveActive && !state.drafting" class="preview">
+          <span class="preview__label">{{ t('game.next') }}</span>
+          <span class="preview__units">
+            <span v-for="u in state.nextWave.types" :key="u.key" class="preview__unit">
+              <i v-accent="u.color"></i>{{ u.count }}
+            </span>
+          </span>
+          <span v-if="state.nextWave.boss" class="preview__tag preview__tag--boss">☠</span>
+          <span v-if="state.nextWave.air" class="preview__tag preview__tag--air">✈</span>
+        </div>
+
         <AppButton
           variant="wave"
           :disabled="state.waveActive || state.status !== 'playing' || state.drafting"
           @click="startWave"
         >{{ state.drafting ? t('game.pickMod') : startLabel }}</AppButton>
+        <div v-if="state.prep > 0" class="prep-bar"><i :style="{ width: (state.prep / 6 * 100) + '%' }"></i></div>
 
         <BuildShop
           :money="state.money" :deployed="state.deployed" :active-key="activeKey"

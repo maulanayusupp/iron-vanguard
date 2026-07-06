@@ -6,6 +6,7 @@ import { HERO_LIST, ULTIMATE_LIST, RARITY, HERO_SLOTS, ULTIMATE_SLOTS, isUltimat
 import { typeLabel } from '../../game/config/damage.js'
 import { TILE } from '../../game/config/maps.js'
 import { t } from '../../i18n/index.js'
+import { barracksEffects } from '../../composables/useBarracks.js'
 
 const tiles = (px) => (px / TILE).toFixed(1) + 't'
 function towerStat(t) {
@@ -33,7 +34,7 @@ const withRarity = (h) => ({ ...h, rarityColor: RARITY[h.rarity].color, rarityLa
 const heroes = HERO_LIST.map(withRarity)
 const ultimates = ULTIMATE_LIST.map(withRarity)
 
-const heroSlots = HERO_SLOTS
+const heroSlots = HERO_SLOTS + (barracksEffects().heroSlot || 0)
 const ultSlots = ULTIMATE_SLOTS
 const deployedHeroes = computed(() => props.deployed.filter((k) => !isUltimate(k)).length)
 const deployedUlts = computed(() => props.deployed.filter((k) => isUltimate(k)).length)
